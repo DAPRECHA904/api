@@ -14,15 +14,11 @@ app.use(express.static(__dirname));
 // ======================================================
 
 app.get("/lyrics", (req, res) => {
-    res.sendFile(
-        path.join(__dirname, "lyrics.html")
-    );
+    res.sendFile(path.join(__dirname, "lyrics.html"));
 });
 
 app.get("/lyrics.html", (req, res) => {
-    res.sendFile(
-        path.join(__dirname, "lyrics.html")
-    );
+    res.sendFile(path.join(__dirname, "lyrics.html"));
 });
 
 
@@ -31,11 +27,8 @@ const PORT = process.env.PORT || 3000;
 
 // ======================================================
 // SLOW TIDE NOW PLAYING SERVER
-// Da Obsidian Court
 // ======================================================
 
-
-// Default station
 let currentStream =
     "http://mogullustradio.shoutcastnet.com:30800/stream";
 
@@ -50,17 +43,14 @@ let checking = false;
 // ======================================================
 
 let lyricsCache = {
-
     title: null,
-
     result: null,
-
     updated: 0
 };
 
 
 // ======================================================
-// CLEAN TEXT / HTML
+// CLEAN TEXT
 // ======================================================
 
 function decodeText(value) {
@@ -80,7 +70,6 @@ function decodeText(value) {
         .replace(/&gt;/gi, ">")
         .replace(/&nbsp;/gi, " ")
 
-        // Common broken UTF-8 punctuation
         .replace(/â€“/g, "-")
         .replace(/â€”/g, "-")
         .replace(/âˆ’/g, "-")
@@ -119,7 +108,8 @@ function cleanTitle(value) {
     if (!title)
         return null;
 
-    const lower = title.toLowerCase();
+    const lower =
+        title.toLowerCase();
 
     if (
         lower === "unknown" ||
@@ -137,42 +127,65 @@ function cleanTitle(value) {
 // BASIC HTTP FETCH
 // ======================================================
 
-function fetchText(urlString, timeout = 8000, redirects = 0) {
+function fetchText(
+    urlString,
+    timeout = 8000,
+    redirects = 0
+) {
 
     return new Promise((resolve, reject) => {
 
         if (redirects > 5) {
-            reject(new Error("Too many redirects"));
+
+            reject(
+                new Error("Too many redirects")
+            );
+
             return;
         }
+
 
         let url;
 
         try {
-            url = new URL(urlString);
+
+            url =
+                new URL(urlString);
         }
+
         catch (error) {
+
             reject(error);
+
             return;
         }
+
 
         const client =
             url.protocol === "https:"
                 ? https
                 : http;
 
+
         const options = {
 
-            hostname: url.hostname,
+            hostname:
+                url.hostname,
 
             port:
                 url.port ||
-                (url.protocol === "https:" ? 443 : 80),
+                (
+                    url.protocol === "https:"
+                        ? 443
+                        : 80
+                ),
 
             path:
-                url.pathname + url.search,
+                url.pathname +
+                url.search,
 
-            method: "GET",
+            method:
+                "GET",
 
             headers: {
 
@@ -189,97 +202,124 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
 
 
         const request =
-            client.request(options, response => {
+            client.request(
+                options,
+                response => {
 
-                // --------------------------------------
-                // REDIRECT
-                // --------------------------------------
+                    // -----------------------------
+                    // REDIRECT
+                    // -----------------------------
 
-                if (
-                    response.statusCode >= 300 &&
-                    response.statusCode < 400 &&
-                    response.headers.location
-                ) {
+                    if (
+                        response.statusCode >= 300 &&
+                        response.statusCode < 400 &&
+                        response.headers.location
+                    ) {
 
-                    response.destroy();
-
-                    const redirectURL =
-                        new URL(
-                            response.headers.location,
-                            urlString
-                        ).toString();
-
-                    fetchText(
-                        redirectURL,
-                        timeout,
-                        redirects + 1
-                    )
-                    .then(resolve)
-                    .catch(reject);
-
-                    return;
-                }
-
-
-                // --------------------------------------
-                // HTTP ERROR
-                // --------------------------------------
-
-                if (
-                    response.statusCode &&
-                    response.statusCode >= 400
-                ) {
-
-                    response.resume();
-
-                    reject(
-                        new Error(
-                            "HTTP " +
-                            response.statusCode
-                        )
-                    );
-
-                    return;
-                }
-
-
-                const chunks = [];
-                let totalLength = 0;
-
-
-                response.on("data", chunk => {
-
-                    if (!Buffer.isBuffer(chunk)) {
-                        chunk = Buffer.from(chunk);
-                    }
-
-                    chunks.push(chunk);
-
-                    totalLength += chunk.length;
-
-
-                    if (totalLength > 2000000) {
                         response.destroy();
+
+
+                        const redirectURL =
+                            new URL(
+                                response.headers.location,
+                                urlString
+                            ).toString();
+
+
+                        fetchText(
+                            redirectURL,
+                            timeout,
+                            redirects + 1
+                        )
+                        .then(resolve)
+                        .catch(reject);
+
+                        return;
                     }
-                });
 
 
-                response.on("end", () => {
+                    // -----------------------------
+                    // HTTP ERROR
+                    // -----------------------------
 
-                    const buffer =
-                        Buffer.concat(chunks);
+                    if (
+                        response.statusCode &&
+                        response.statusCode >= 400
+                    ) {
 
-                    resolve(
-                        buffer.toString("utf8")
+                        response.resume();
+
+                        reject(
+                            new Error(
+                                "HTTP " +
+                                response.statusCode
+                            )
+                        );
+
+                        return;
+                    }
+
+
+                    const chunks = [];
+
+                    let totalLength = 0;
+
+
+                    response.on(
+                        "data",
+                        chunk => {
+
+                            if (
+                                !Buffer.isBuffer(chunk)
+                            ) {
+
+                                chunk =
+                                    Buffer.from(chunk);
+                            }
+
+
+                            chunks.push(chunk);
+
+                            totalLength +=
+                                chunk.length;
+
+
+                            if (
+                                totalLength >
+                                2000000
+                            ) {
+
+                                response.destroy();
+                            }
+                        }
                     );
-                });
 
 
-                response.on(
-                    "error",
-                    reject
-                );
-            });
+                    response.on(
+                        "end",
+                        () => {
+
+                            const buffer =
+                                Buffer.concat(
+                                    chunks
+                                );
+
+
+                            resolve(
+                                buffer.toString(
+                                    "utf8"
+                                )
+                            );
+                        }
+                    );
+
+
+                    response.on(
+                        "error",
+                        reject
+                    );
+                }
+            );
 
 
         request.on(
@@ -309,10 +349,13 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
 
 
 // ======================================================
-// READ ICY STREAM METADATA
+// ICY METADATA
 // ======================================================
 
-function getIcyStreamTitle(streamUrl, redirects = 0) {
+function getIcyStreamTitle(
+    streamUrl,
+    redirects = 0
+) {
 
     return new Promise((resolve, reject) => {
 
@@ -331,10 +374,15 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
         let url;
 
         try {
-            url = new URL(streamUrl);
+
+            url =
+                new URL(streamUrl);
         }
+
         catch (error) {
+
             reject(error);
+
             return;
         }
 
@@ -347,20 +395,28 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
 
         const options = {
 
-            hostname: url.hostname,
+            hostname:
+                url.hostname,
 
             port:
                 url.port ||
-                (url.protocol === "https:" ? 443 : 80),
+                (
+                    url.protocol === "https:"
+                        ? 443
+                        : 80
+                ),
 
             path:
-                url.pathname + url.search,
+                url.pathname +
+                url.search,
 
-            method: "GET",
+            method:
+                "GET",
 
             headers: {
 
-                "Icy-MetaData": "1",
+                "Icy-MetaData":
+                    "1",
 
                 "User-Agent":
                     "Mozilla/5.0 SlowTideNowPlaying",
@@ -400,256 +456,280 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
 
 
         const request =
-            client.request(options, response => {
+            client.request(
+                options,
+                response => {
 
-                // --------------------------------------
-                // REDIRECT
-                // --------------------------------------
+                    // -----------------------------
+                    // REDIRECT
+                    // -----------------------------
 
-                if (
-                    response.statusCode >= 300 &&
-                    response.statusCode < 400 &&
-                    response.headers.location
-                ) {
+                    if (
+                        response.statusCode >= 300 &&
+                        response.statusCode < 400 &&
+                        response.headers.location
+                    ) {
 
-                    response.destroy();
-
-                    const redirectURL =
-                        new URL(
-                            response.headers.location,
-                            streamUrl
-                        ).toString();
-
-                    getIcyStreamTitle(
-                        redirectURL,
-                        redirects + 1
-                    )
-                    .then(success)
-                    .catch(failure);
-
-                    return;
-                }
+                        response.destroy();
 
 
-                // --------------------------------------
-                // HTTP ERROR
-                // --------------------------------------
+                        const redirectURL =
+                            new URL(
+                                response.headers.location,
+                                streamUrl
+                            ).toString();
 
-                if (
-                    response.statusCode &&
-                    response.statusCode >= 400
-                ) {
 
-                    response.destroy();
-
-                    failure(
-                        new Error(
-                            "Station returned HTTP " +
-                            response.statusCode
+                        getIcyStreamTitle(
+                            redirectURL,
+                            redirects + 1
                         )
-                    );
+                        .then(success)
+                        .catch(failure);
 
-                    return;
-                }
-
-
-                const metaInt =
-                    parseInt(
-                        response.headers[
-                            "icy-metaint"
-                        ]
-                    );
+                        return;
+                    }
 
 
-                if (!metaInt || metaInt <= 0) {
+                    if (
+                        response.statusCode &&
+                        response.statusCode >= 400
+                    ) {
 
-                    response.destroy();
+                        response.destroy();
 
-                    failure(
-                        new Error(
-                            "No ICY metadata interval"
-                        )
-                    );
+                        failure(
+                            new Error(
+                                "Station returned HTTP " +
+                                response.statusCode
+                            )
+                        );
 
-                    return;
-                }
-
-
-                let audioBytes = 0;
-
-                let metadataLength = null;
-
-                let metadata =
-                    Buffer.alloc(0);
+                        return;
+                    }
 
 
-                response.on(
-                    "data",
-                    chunk => {
+                    const metaInt =
+                        parseInt(
+                            response.headers[
+                                "icy-metaint"
+                            ]
+                        );
 
-                        let offset = 0;
+
+                    if (
+                        !metaInt ||
+                        metaInt <= 0
+                    ) {
+
+                        response.destroy();
+
+                        failure(
+                            new Error(
+                                "No ICY metadata interval"
+                            )
+                        );
+
+                        return;
+                    }
 
 
-                        while (
-                            offset < chunk.length
-                        ) {
+                    let audioBytes = 0;
 
-                            // --------------------------------
-                            // SKIP AUDIO
-                            // --------------------------------
+                    let metadataLength = null;
 
-                            if (
-                                audioBytes < metaInt
+                    let metadata =
+                        Buffer.alloc(0);
+
+
+                    response.on(
+                        "data",
+                        chunk => {
+
+                            let offset = 0;
+
+
+                            while (
+                                offset <
+                                chunk.length
                             ) {
 
-                                const remaining =
-                                    metaInt -
-                                    audioBytes;
+                                // -------------------------
+                                // SKIP AUDIO
+                                // -------------------------
+
+                                if (
+                                    audioBytes <
+                                    metaInt
+                                ) {
+
+                                    const remaining =
+                                        metaInt -
+                                        audioBytes;
+
+
+                                    const amount =
+                                        Math.min(
+                                            remaining,
+                                            chunk.length -
+                                            offset
+                                        );
+
+
+                                    audioBytes +=
+                                        amount;
+
+                                    offset +=
+                                        amount;
+
+                                    continue;
+                                }
+
+
+                                // -------------------------
+                                // METADATA LENGTH
+                                // -------------------------
+
+                                if (
+                                    metadataLength ===
+                                    null
+                                ) {
+
+                                    metadataLength =
+                                        chunk[offset] *
+                                        16;
+
+                                    offset++;
+
+
+                                    if (
+                                        metadataLength ===
+                                        0
+                                    ) {
+
+                                        audioBytes = 0;
+
+                                        metadataLength =
+                                            null;
+
+                                        metadata =
+                                            Buffer.alloc(0);
+
+                                        continue;
+                                    }
+                                }
+
+
+                                // -------------------------
+                                // READ METADATA
+                                // -------------------------
+
+                                const needed =
+                                    metadataLength -
+                                    metadata.length;
+
 
                                 const amount =
                                     Math.min(
-                                        remaining,
+                                        needed,
                                         chunk.length -
                                         offset
                                     );
 
-                                audioBytes += amount;
 
-                                offset += amount;
+                                metadata =
+                                    Buffer.concat([
+                                        metadata,
 
-                                continue;
-                            }
+                                        chunk.subarray(
+                                            offset,
+                                            offset +
+                                            amount
+                                        )
+                                    ]);
 
 
-                            // --------------------------------
-                            // METADATA SIZE BYTE
-                            // --------------------------------
+                                offset +=
+                                    amount;
 
-                            if (
-                                metadataLength === null
-                            ) {
 
-                                metadataLength =
-                                    chunk[offset] * 16;
-
-                                offset++;
-
+                                // -------------------------
+                                // COMPLETE METADATA
+                                // -------------------------
 
                                 if (
-                                    metadataLength === 0
+                                    metadata.length >=
+                                    metadataLength
                                 ) {
+
+                                    const text =
+                                        metadata
+                                            .toString(
+                                                "utf8"
+                                            )
+                                            .replace(
+                                                /\0/g,
+                                                ""
+                                            );
+
+
+                                    const match =
+                                        text.match(
+                                            /StreamTitle=['"]([^'"]*)['"]/i
+                                        );
+
+
+                                    if (
+                                        match &&
+                                        match[1] &&
+                                        match[1].trim()
+                                    ) {
+
+                                        response.destroy();
+
+
+                                        success(
+                                            cleanTitle(
+                                                match[1]
+                                            )
+                                        );
+
+                                        return;
+                                    }
+
 
                                     audioBytes = 0;
 
-                                    metadataLength = null;
+                                    metadataLength =
+                                        null;
 
                                     metadata =
                                         Buffer.alloc(0);
-
-                                    continue;
                                 }
-                            }
-
-
-                            // --------------------------------
-                            // READ METADATA
-                            // --------------------------------
-
-                            const needed =
-                                metadataLength -
-                                metadata.length;
-
-
-                            const amount =
-                                Math.min(
-                                    needed,
-                                    chunk.length -
-                                    offset
-                                );
-
-
-                            metadata =
-                                Buffer.concat([
-                                    metadata,
-                                    chunk.subarray(
-                                        offset,
-                                        offset + amount
-                                    )
-                                ]);
-
-
-                            offset += amount;
-
-
-                            // --------------------------------
-                            // COMPLETE BLOCK
-                            // --------------------------------
-
-                            if (
-                                metadata.length >=
-                                metadataLength
-                            ) {
-
-                                const text =
-                                    metadata
-                                    .toString("utf8")
-                                    .replace(/\0/g, "");
-
-
-                                const match =
-                                    text.match(
-                                        /StreamTitle=['"]([^'"]*)['"]/i
-                                    );
-
-
-                                if (
-                                    match &&
-                                    match[1] &&
-                                    match[1].trim()
-                                ) {
-
-                                    response.destroy();
-
-                                    success(
-                                        cleanTitle(
-                                            match[1]
-                                        )
-                                    );
-
-                                    return;
-                                }
-
-
-                                audioBytes = 0;
-
-                                metadataLength = null;
-
-                                metadata =
-                                    Buffer.alloc(0);
                             }
                         }
-                    }
-                );
+                    );
 
 
-                response.on(
-                    "error",
-                    failure
-                );
+                    response.on(
+                        "error",
+                        failure
+                    );
 
 
-                response.on(
-                    "end",
-                    () => {
+                    response.on(
+                        "end",
+                        () => {
 
-                        failure(
-                            new Error(
-                                "Stream ended before metadata"
-                            )
-                        );
-                    }
-                );
-            });
+                            failure(
+                                new Error(
+                                    "Stream ended before metadata"
+                                )
+                            );
+                        }
+                    );
+                }
+            );
 
 
         request.on(
@@ -679,7 +759,7 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
 
 
 // ======================================================
-// GET RADIO SERVER BASE
+// RADIO SERVER BASE
 // ======================================================
 
 function getRadioBase(streamUrl) {
@@ -714,12 +794,18 @@ function findTitleInObject(obj) {
         return null;
 
 
-    if (Array.isArray(obj)) {
+    if (
+        Array.isArray(obj)
+    ) {
 
-        for (const item of obj) {
+        for (
+            const item of obj
+        ) {
 
             const found =
-                findTitleInObject(item);
+                findTitleInObject(
+                    item
+                );
 
             if (found)
                 return found;
@@ -730,8 +816,10 @@ function findTitleInObject(obj) {
 
 
     if (
-        typeof obj !== "object"
+        typeof obj !==
+        "object"
     ) {
+
         return null;
     }
 
@@ -739,18 +827,27 @@ function findTitleInObject(obj) {
     if (
         obj.artist &&
         obj.title &&
-        typeof obj.artist !== "object" &&
-        typeof obj.title !== "object"
+        typeof obj.artist !==
+            "object" &&
+        typeof obj.title !==
+            "object"
     ) {
 
         const artist =
-            cleanTitle(obj.artist);
+            cleanTitle(
+                obj.artist
+            );
 
         const song =
-            cleanTitle(obj.title);
+            cleanTitle(
+                obj.title
+            );
 
 
-        if (artist && song) {
+        if (
+            artist &&
+            song
+        ) {
 
             return (
                 artist +
@@ -779,12 +876,17 @@ function findTitleInObject(obj) {
     ];
 
 
-    for (const field of fields) {
+    for (
+        const field of fields
+    ) {
 
         if (
             Object.prototype
                 .hasOwnProperty
-                .call(obj, field)
+                .call(
+                    obj,
+                    field
+                )
         ) {
 
             const value =
@@ -793,13 +895,15 @@ function findTitleInObject(obj) {
 
             if (
                 value &&
-                typeof value === "object"
+                typeof value ===
+                "object"
             ) {
 
                 const nested =
                     findTitleInObject(
                         value
                     );
+
 
                 if (nested)
                     return nested;
@@ -808,7 +912,10 @@ function findTitleInObject(obj) {
             else {
 
                 const title =
-                    cleanTitle(value);
+                    cleanTitle(
+                        value
+                    );
+
 
                 if (title)
                     return title;
@@ -819,11 +926,15 @@ function findTitleInObject(obj) {
 
     if (
         obj.title &&
-        typeof obj.title !== "object"
+        typeof obj.title !==
+        "object"
     ) {
 
         const title =
-            cleanTitle(obj.title);
+            cleanTitle(
+                obj.title
+            );
+
 
         if (title)
             return title;
@@ -831,7 +942,8 @@ function findTitleInObject(obj) {
 
 
     for (
-        const key of Object.keys(obj)
+        const key of
+        Object.keys(obj)
     ) {
 
         const value =
@@ -840,13 +952,15 @@ function findTitleInObject(obj) {
 
         if (
             value &&
-            typeof value === "object"
+            typeof value ===
+            "object"
         ) {
 
             const found =
                 findTitleInObject(
                     value
                 );
+
 
             if (found)
                 return found;
@@ -859,7 +973,7 @@ function findTitleInObject(obj) {
 
 
 // ======================================================
-// SHOUTCAST INDEX.HTML PLAYING NOW
+// SHOUTCAST INDEX
 // ======================================================
 
 async function tryShoutcastIndex(baseURL) {
@@ -881,9 +995,18 @@ async function tryShoutcastIndex(baseURL) {
 
         const normalized =
             html
-            .replace(/\r/g, " ")
-            .replace(/\n/g, " ")
-            .replace(/\t/g, " ");
+                .replace(
+                    /\r/g,
+                    " "
+                )
+                .replace(
+                    /\n/g,
+                    " "
+                )
+                .replace(
+                    /\t/g,
+                    " "
+                );
 
 
         let match =
@@ -951,7 +1074,6 @@ async function tryShoutcastIndex(baseURL) {
                 }
             }
         }
-
     }
 
     catch (error) {
@@ -968,7 +1090,7 @@ async function tryShoutcastIndex(baseURL) {
 
 
 // ======================================================
-// OLD SHOUTCAST /7.HTML
+// SHOUTCAST /7.HTML
 // ======================================================
 
 async function tryShoutcast7HTML(baseURL) {
@@ -1020,12 +1142,11 @@ async function tryShoutcast7HTML(baseURL) {
                 return title;
             }
         }
-
     }
 
     catch (error) {
 
-        // Keep trying.
+        // Continue.
     }
 
 
@@ -1034,7 +1155,7 @@ async function tryShoutcast7HTML(baseURL) {
 
 
 // ======================================================
-// PLAIN CURRENT SONG ENDPOINT
+// CURRENT SONG ENDPOINT
 // ======================================================
 
 async function tryCurrentSong(baseURL) {
@@ -1104,7 +1225,6 @@ async function tryCurrentSong(baseURL) {
 
                 return title;
             }
-
         }
 
         catch (error) {
@@ -1119,7 +1239,7 @@ async function tryCurrentSong(baseURL) {
 
 
 // ======================================================
-// ICECAST STATUS JSON
+// ICECAST JSON
 // ======================================================
 
 async function tryIcecastJSON(baseURL) {
@@ -1156,7 +1276,6 @@ async function tryIcecastJSON(baseURL) {
 
             return title;
         }
-
     }
 
     catch (error) {
@@ -1170,7 +1289,7 @@ async function tryIcecastJSON(baseURL) {
 
 
 // ======================================================
-// SHOUTCAST STATS JSON
+// SHOUTCAST STATS
 // ======================================================
 
 async function tryShoutcastStats(baseURL) {
@@ -1227,7 +1346,6 @@ async function tryShoutcastStats(baseURL) {
 
                 // Not JSON.
             }
-
         }
 
         catch (error) {
@@ -1242,7 +1360,7 @@ async function tryShoutcastStats(baseURL) {
 
 
 // ======================================================
-// MASTER SONG LOOKUP
+// MASTER RADIO LOOKUP
 // ======================================================
 
 async function getStreamTitle(streamUrl) {
@@ -1253,7 +1371,7 @@ async function getStreamTitle(streamUrl) {
     );
 
 
-    // 1. STANDARD ICY
+    // 1. ICY
 
     try {
 
@@ -1272,7 +1390,6 @@ async function getStreamTitle(streamUrl) {
 
             return title;
         }
-
     }
 
     catch (error) {
@@ -1298,7 +1415,7 @@ async function getStreamTitle(streamUrl) {
     }
 
 
-    // 2. SHOUTCAST PLAYING NOW PAGE
+    // 2. SHOUTCAST PAGE
 
     let title =
         await tryShoutcastIndex(
@@ -1310,7 +1427,7 @@ async function getStreamTitle(streamUrl) {
         return title;
 
 
-    // 3. SHOUTCAST CURRENTSONG
+    // 3. CURRENTSONG
 
     title =
         await tryCurrentSong(
@@ -1322,7 +1439,7 @@ async function getStreamTitle(streamUrl) {
         return title;
 
 
-    // 4. SHOUTCAST STATS
+    // 4. STATS
 
     title =
         await tryShoutcastStats(
@@ -1334,7 +1451,7 @@ async function getStreamTitle(streamUrl) {
         return title;
 
 
-    // 5. ICECAST STATUS
+    // 5. ICECAST
 
     title =
         await tryIcecastJSON(
@@ -1346,7 +1463,7 @@ async function getStreamTitle(streamUrl) {
         return title;
 
 
-    // 6. OLD SHOUTCAST 7.HTML
+    // 6. /7.HTML
 
     title =
         await tryShoutcast7HTML(
@@ -1406,29 +1523,29 @@ async function updateNowPlaying() {
             cleanTitle(title);
 
 
-        if (cleaned) {
+        if (
+            cleaned &&
+            cleaned !==
+            currentTitle
+        ) {
 
-            if (
-                cleaned !==
+            currentTitle =
+                cleaned;
+
+
+            // Clear lyrics cache
+            lyricsCache = {
+                title: null,
+                result: null,
+                updated: 0
+            };
+
+
+            console.log(
+                "NOW PLAYING:",
                 currentTitle
-            ) {
-
-                currentTitle =
-                    cleaned;
-
-                // Clear lyrics cache when song changes
-                lyricsCache.title = null;
-                lyricsCache.result = null;
-                lyricsCache.updated = 0;
-
-
-                console.log(
-                    "NOW PLAYING:",
-                    currentTitle
-                );
-            }
+            );
         }
-
     }
 
     catch (error) {
@@ -1457,7 +1574,7 @@ async function updateNowPlaying() {
 
 
 // ======================================================
-// SPLIT ARTIST + SONG
+// SPLIT ARTIST / SONG
 // ======================================================
 
 function splitArtistAndSong(fullTitle) {
@@ -1472,14 +1589,19 @@ function splitArtistAndSong(fullTitle) {
 
 
     const separator =
-        fullTitle.indexOf(" - ");
+        fullTitle.indexOf(
+            " - "
+        );
 
 
-    if (separator === -1) {
+    if (
+        separator === -1
+    ) {
 
         return {
             artist: null,
-            song: fullTitle.trim()
+            song:
+                fullTitle.trim()
         };
     }
 
@@ -1505,91 +1627,394 @@ function splitArtistAndSong(fullTitle) {
 
 
 // ======================================================
-// CLEAN SONG NAME FOR LYRICS SEARCH
+// LYRICS SEARCH CLEANUP
 // ======================================================
 
-function cleanSongForLyrics(value) {
+function removeFeaturedArtists(song) {
 
-    if (!value)
-        return null;
-
-
-    let song =
-        String(value);
+    if (!song)
+        return song;
 
 
-    // Remove common radio additions that can hurt matching
-    song = song
+    return String(song)
+
+        // ft. Artist
         .replace(
-            /\s*\[(?:official|audio|video|lyrics).*?\]\s*/gi,
-            " "
+            /\s+(?:ft\.?|feat\.?|featuring)\s+.+$/i,
+            ""
         )
+
+        // (feat. Artist)
         .replace(
-            /\s*\((?:official|audio|video|lyrics).*?\)\s*/gi,
-            " "
+            /\s*\((?:ft\.?|feat\.?|featuring)\s+[^)]*\)/gi,
+            ""
         )
+
+        // [feat. Artist]
+        .replace(
+            /\s*\[(?:ft\.?|feat\.?|featuring)\s+[^\]]*\]/gi,
+            ""
+        )
+
         .replace(
             /\s+/g,
             " "
         )
+
         .trim();
+}
 
 
-    return song || null;
+function removeVersionInfo(song) {
+
+    if (!song)
+        return song;
+
+
+    return String(song)
+
+        .replace(
+            /\s*\((?:official\s*)?(?:audio|video|lyrics|music video)\)\s*/gi,
+            " "
+        )
+
+        .replace(
+            /\s*\[(?:official\s*)?(?:audio|video|lyrics|music video)\]\s*/gi,
+            " "
+        )
+
+        .replace(
+            /\s*\((?:radio edit|radio version|album version|clean|explicit)\)\s*/gi,
+            " "
+        )
+
+        .replace(
+            /\s*\[(?:radio edit|radio version|album version|clean|explicit)\]\s*/gi,
+            " "
+        )
+
+        .replace(
+            /\s+/g,
+            " "
+        )
+
+        .trim();
+}
+
+
+function removeRemixInfo(song) {
+
+    if (!song)
+        return song;
+
+
+    return String(song)
+
+        .replace(
+            /\s*[\(\[][^)\]]*remix[^)\]]*[\)\]]/gi,
+            " "
+        )
+
+        .replace(
+            /\s+-\s+.*remix.*$/gi,
+            ""
+        )
+
+        .replace(
+            /\s+/g,
+            " "
+        )
+
+        .trim();
 }
 
 
 // ======================================================
-// LRCLIB SEARCH
+// CREATE MULTIPLE TITLE VERSIONS
 // ======================================================
 
-async function searchLRCLIB(
+function createSongVariants(song) {
+
+    const variants = [];
+
+
+    function add(value) {
+
+        if (!value)
+            return;
+
+
+        value =
+            String(value)
+                .replace(
+                    /\s+/g,
+                    " "
+                )
+                .trim();
+
+
+        if (
+            value &&
+            !variants.includes(value)
+        ) {
+
+            variants.push(value);
+        }
+    }
+
+
+    // Original
+    add(song);
+
+
+    // Remove radio/version labels
+    const noVersion =
+        removeVersionInfo(song);
+
+    add(noVersion);
+
+
+    // Remove featured artist
+    const noFeature =
+        removeFeaturedArtists(
+            noVersion
+        );
+
+    add(noFeature);
+
+
+    // Remove remix info
+    const noRemix =
+        removeRemixInfo(
+            noFeature
+        );
+
+    add(noRemix);
+
+
+    // Example:
+    // G.O.A.T. 2.0 -> G.O.A.T.
+
+    const noVersionNumber =
+        noRemix
+            .replace(
+                /\s+\d+\.\d+\s*$/i,
+                ""
+            )
+            .trim();
+
+    add(noVersionNumber);
+
+
+    // Remove trailing dash information
+    const noTrailing =
+        noVersionNumber
+            .replace(
+                /\s+-\s+.+$/,
+                ""
+            )
+            .trim();
+
+    add(noTrailing);
+
+
+    return variants;
+}
+
+
+// ======================================================
+// NORMALIZE MATCHING
+// ======================================================
+
+function normalizeLyricsText(value) {
+
+    return String(
+        value || ""
+    )
+        .toLowerCase()
+
+        .replace(
+            /&/g,
+            " and "
+        )
+
+        .replace(
+            /[^a-z0-9]+/g,
+            " "
+        )
+
+        .replace(
+            /\s+/g,
+            " "
+        )
+
+        .trim();
+}
+
+
+// ======================================================
+// SCORE LRCLIB RESULT
+// ======================================================
+
+function scoreLyricsResult(
+    item,
+    wantedArtist,
+    wantedSong
+) {
+
+    if (!item)
+        return -1000;
+
+
+    let score = 0;
+
+
+    const resultArtist =
+        normalizeLyricsText(
+            item.artistName
+        );
+
+
+    const resultSong =
+        normalizeLyricsText(
+            item.trackName
+        );
+
+
+    const artist =
+        normalizeLyricsText(
+            wantedArtist
+        );
+
+
+    const song =
+        normalizeLyricsText(
+            wantedSong
+        );
+
+
+    // SONG
+
+    if (
+        resultSong === song
+    ) {
+
+        score += 150;
+    }
+
+    else if (
+        resultSong.includes(song) ||
+        song.includes(resultSong)
+    ) {
+
+        score += 80;
+    }
+
+
+    // ARTIST
+
+    if (
+        artist &&
+        resultArtist === artist
+    ) {
+
+        score += 150;
+    }
+
+    else if (
+        artist &&
+        (
+            resultArtist.includes(
+                artist
+            ) ||
+            artist.includes(
+                resultArtist
+            )
+        )
+    ) {
+
+        score += 70;
+    }
+
+
+    // Prefer synced lyrics
+
+    if (
+        item.syncedLyrics &&
+        item.syncedLyrics.trim()
+    ) {
+
+        score += 40;
+    }
+
+
+    // Plain lyrics
+
+    if (
+        item.plainLyrics &&
+        item.plainLyrics.trim()
+    ) {
+
+        score += 20;
+    }
+
+
+    // Instrumental penalty
+
+    if (
+        item.instrumental === true
+    ) {
+
+        score -= 200;
+    }
+
+
+    return score;
+}
+
+
+// ======================================================
+// SEARCH ONE LRCLIB QUERY
+// ======================================================
+
+async function searchLRCLIBQuery(
+    query,
     artist,
     song
 ) {
 
-    if (!song)
-        return null;
-
-
-    const cleanArtist =
-        artist
-            ? artist.trim()
-            : "";
-
-    const cleanSong =
-        cleanSongForLyrics(song);
-
-
-    let query =
-        cleanSong;
-
-
-    if (cleanArtist) {
-
-        query =
-            cleanArtist +
-            " " +
-            cleanSong;
-    }
-
-
-    const searchURL =
+    const url =
         "https://lrclib.net/api/search?q=" +
         encodeURIComponent(query);
 
 
     console.log(
-        "LRCLIB SEARCH:",
+        "LRCLIB TRY:",
         query
     );
 
 
-    const text =
-        await fetchText(
-            searchURL,
-            10000
+    let text;
+
+
+    try {
+
+        text =
+            await fetchText(
+                url,
+                10000
+            );
+    }
+
+    catch (error) {
+
+        console.log(
+            "LRCLIB REQUEST FAILED:",
+            error.message
         );
+
+        return null;
+    }
 
 
     let results;
@@ -1603,9 +2028,11 @@ async function searchLRCLIB(
 
     catch (error) {
 
-        throw new Error(
-            "LRCLIB returned invalid JSON"
+        console.log(
+            "LRCLIB INVALID JSON"
         );
+
+        return null;
     }
 
 
@@ -1615,136 +2042,42 @@ async function searchLRCLIB(
     ) {
 
         console.log(
-            "LRCLIB: No results"
+            "LRCLIB NO RESULTS:",
+            query
         );
 
         return null;
     }
 
 
-    // --------------------------------------------------
-    // Find the best result.
-    // Prefer exact artist/title matches.
-    // Then prefer synchronized lyrics.
-    // --------------------------------------------------
-
-    const normalize =
-        value => String(value || "")
-            .toLowerCase()
-            .replace(/[^\p{L}\p{N}]+/gu, " ")
-            .replace(/\s+/g, " ")
-            .trim();
-
-
-    const wantedArtist =
-        normalize(cleanArtist);
-
-    const wantedSong =
-        normalize(cleanSong);
-
-
     let best = null;
-    let bestScore = -1;
+
+    let bestScore =
+        -1000;
 
 
-    for (const item of results) {
+    for (
+        const item of results
+    ) {
 
-        if (!item)
-            continue;
-
-
-        let score = 0;
-
-
-        const resultArtist =
-            normalize(
-                item.artistName
-            );
-
-        const resultSong =
-            normalize(
-                item.trackName
+        const score =
+            scoreLyricsResult(
+                item,
+                artist,
+                song
             );
 
 
         if (
-            wantedSong &&
-            resultSong === wantedSong
+            score >
+            bestScore
         ) {
 
-            score += 100;
-        }
+            bestScore =
+                score;
 
-        else if (
-            wantedSong &&
-            (
-                resultSong.includes(
-                    wantedSong
-                ) ||
-                wantedSong.includes(
-                    resultSong
-                )
-            )
-        ) {
-
-            score += 50;
-        }
-
-
-        if (
-            wantedArtist &&
-            resultArtist === wantedArtist
-        ) {
-
-            score += 100;
-        }
-
-        else if (
-            wantedArtist &&
-            (
-                resultArtist.includes(
-                    wantedArtist
-                ) ||
-                wantedArtist.includes(
-                    resultArtist
-                )
-            )
-        ) {
-
-            score += 40;
-        }
-
-
-        if (
-            item.syncedLyrics &&
-            item.syncedLyrics.trim()
-        ) {
-
-            score += 25;
-        }
-
-
-        if (
-            item.plainLyrics &&
-            item.plainLyrics.trim()
-        ) {
-
-            score += 10;
-        }
-
-
-        if (
-            item.instrumental === true
-        ) {
-
-            score -= 100;
-        }
-
-
-        if (score > bestScore) {
-
-            bestScore = score;
-            best = item;
+            best =
+                item;
         }
     }
 
@@ -1754,19 +2087,182 @@ async function searchLRCLIB(
 
 
     console.log(
-        "LRCLIB MATCH:",
+        "LRCLIB POSSIBLE MATCH:",
         best.artistName,
         "-",
-        best.trackName
+        best.trackName,
+        "SCORE:",
+        bestScore
     );
 
 
-    return best;
+    return {
+        item: best,
+        score: bestScore
+    };
 }
 
 
 // ======================================================
-// GET LYRICS FOR CURRENT SONG
+// SMART LRCLIB SEARCH
+// ======================================================
+
+async function searchLRCLIB(
+    artist,
+    originalSong
+) {
+
+    if (!originalSong)
+        return null;
+
+
+    const variants =
+        createSongVariants(
+            originalSong
+        );
+
+
+    console.log(
+        "================================"
+    );
+
+    console.log(
+        "LRCLIB SMART SEARCH"
+    );
+
+    console.log(
+        "ARTIST:",
+        artist
+    );
+
+    console.log(
+        "ORIGINAL SONG:",
+        originalSong
+    );
+
+    console.log(
+        "VARIANTS:",
+        variants
+    );
+
+    console.log(
+        "================================"
+    );
+
+
+    let bestOverall = null;
+
+    let bestOverallScore =
+        -1000;
+
+
+    // --------------------------------------------------
+    // TRY EVERY TITLE VERSION
+    // --------------------------------------------------
+
+    for (
+        const song of variants
+    ) {
+
+        const queries = [];
+
+
+        // Artist + Song
+        if (artist) {
+
+            queries.push(
+                artist +
+                " " +
+                song
+            );
+        }
+
+
+        // Song only
+        queries.push(song);
+
+
+        for (
+            const query of queries
+        ) {
+
+            const result =
+                await searchLRCLIBQuery(
+                    query,
+                    artist,
+                    song
+                );
+
+
+            if (!result)
+                continue;
+
+
+            if (
+                result.score >
+                bestOverallScore
+            ) {
+
+                bestOverall =
+                    result.item;
+
+                bestOverallScore =
+                    result.score;
+            }
+
+
+            // Strong match.
+            // Stop searching.
+
+            if (
+                result.score >= 300
+            ) {
+
+                console.log(
+                    "LRCLIB STRONG MATCH FOUND"
+                );
+
+
+                return result.item;
+            }
+        }
+    }
+
+
+    // --------------------------------------------------
+    // ACCEPT GOOD FALLBACK
+    // --------------------------------------------------
+
+    if (
+        bestOverall &&
+        bestOverallScore >= 130
+    ) {
+
+        console.log(
+            "LRCLIB BEST FALLBACK:",
+            bestOverall.artistName,
+            "-",
+            bestOverall.trackName,
+            "SCORE:",
+            bestOverallScore
+        );
+
+
+        return bestOverall;
+    }
+
+
+    console.log(
+        "LRCLIB: NO SAFE MATCH FOUND"
+    );
+
+
+    return null;
+}
+
+
+// ======================================================
+// GET CURRENT LYRICS
 // ======================================================
 
 async function getCurrentLyrics() {
@@ -1801,9 +2297,13 @@ async function getCurrentLyrics() {
     }
 
 
-    // Use cache if same song
+    // --------------------------------------------------
+    // CACHE
+    // --------------------------------------------------
+
     if (
-        lyricsCache.title === title &&
+        lyricsCache.title ===
+            title &&
         lyricsCache.result
     ) {
 
@@ -1847,6 +2347,10 @@ async function getCurrentLyrics() {
             );
 
 
+        // --------------------------------------------------
+        // NOTHING FOUND
+        // --------------------------------------------------
+
         if (!match) {
 
             const unavailable = {
@@ -1864,6 +2368,11 @@ async function getCurrentLyrics() {
 
                 title:
                     title,
+
+                searchedVariants:
+                    createSongVariants(
+                        info.song
+                    ),
 
                 message:
                     "Lyrics unavailable for this track.",
@@ -1889,6 +2398,10 @@ async function getCurrentLyrics() {
             return unavailable;
         }
 
+
+        // --------------------------------------------------
+        // MATCH FOUND
+        // --------------------------------------------------
 
         const hasSynced =
             Boolean(
@@ -1963,7 +2476,8 @@ async function getCurrentLyrics() {
                 "LRCLIB",
 
             updated:
-                new Date().toISOString()
+                new Date()
+                    .toISOString()
         };
 
 
@@ -1990,6 +2504,15 @@ async function getCurrentLyrics() {
             updated:
                 Date.now()
         };
+
+
+        console.log(
+            "LYRICS READY:",
+            result.status,
+            result.matchedArtist,
+            "-",
+            result.matchedSong
+        );
 
 
         return result;
@@ -2045,7 +2568,8 @@ app.get(
 
         res.json({
 
-            online: true,
+            online:
+                true,
 
             service:
                 "Slow Tide Now Playing",
@@ -2083,7 +2607,8 @@ app.get(
                 currentStream,
 
             updated:
-                new Date().toISOString()
+                new Date()
+                    .toISOString()
         });
     }
 );
@@ -2122,16 +2647,19 @@ app.get(
             );
 
 
-            res.status(500).json({
+            res
+                .status(500)
+                .json({
 
-                success: false,
+                    success:
+                        false,
 
-                status:
-                    "error",
+                    status:
+                        "error",
 
-                message:
-                    "Unable to retrieve lyrics."
-            });
+                    message:
+                        "Unable to retrieve lyrics."
+                });
         }
     }
 );
@@ -2139,7 +2667,6 @@ app.get(
 
 // ======================================================
 // CHANGE ACTIVE RADIO
-// Called by Second Life controller
 // ======================================================
 
 app.post(
@@ -2153,14 +2680,16 @@ app.post(
 
         if (
             !stream ||
-            typeof stream !== "string"
+            typeof stream !==
+            "string"
         ) {
 
             return res
                 .status(400)
                 .json({
 
-                    success: false,
+                    success:
+                        false,
 
                     error:
                         "Missing stream URL"
@@ -2179,15 +2708,16 @@ app.post(
 
 
             if (
-                parsed.protocol !== "http:" &&
-                parsed.protocol !== "https:"
+                parsed.protocol !==
+                    "http:" &&
+                parsed.protocol !==
+                    "https:"
             ) {
 
                 throw new Error(
                     "Unsupported protocol"
                 );
             }
-
         }
 
         catch (error) {
@@ -2196,7 +2726,8 @@ app.post(
                 .status(400)
                 .json({
 
-                    success: false,
+                    success:
+                        false,
 
                     error:
                         "Invalid radio stream URL"
@@ -2219,10 +2750,11 @@ app.post(
                 "Connecting to new station...";
 
 
-            // Clear old lyrics
-            lyricsCache.title = null;
-            lyricsCache.result = null;
-            lyricsCache.updated = 0;
+            lyricsCache = {
+                title: null,
+                result: null,
+                updated: 0
+            };
 
 
             console.log(
@@ -2244,16 +2776,19 @@ app.post(
         }
 
 
-        res.status(200).json({
+        res
+            .status(200)
+            .json({
 
-            success: true,
+                success:
+                    true,
 
-            message:
-                "Slow Tide radio updated",
+                message:
+                    "Slow Tide radio updated",
 
-            stream:
-                currentStream
-        });
+                stream:
+                    currentStream
+            });
 
 
         setTimeout(
@@ -2265,7 +2800,7 @@ app.post(
 
 
 // ======================================================
-// MANUAL REFRESH / TEST
+// MANUAL REFRESH
 // ======================================================
 
 app.get(
@@ -2283,7 +2818,8 @@ app.get(
 
         res.json({
 
-            success: true,
+            success:
+                true,
 
             stream:
                 currentStream,
@@ -2327,6 +2863,10 @@ app.listen(
 
         console.log(
             "Lyrics API: /api/lyrics"
+        );
+
+        console.log(
+            "SMART LYRIC MATCHING: ON"
         );
 
         console.log(
