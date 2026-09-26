@@ -4,49 +4,110 @@
 <meta charset="UTF-8">
 
 <style>
+* {
+    box-sizing: border-box;
+}
+
 html, body {
     margin: 0;
-    padding: 0;
     width: 100%;
     height: 100%;
-    background: #000000;
     overflow: hidden;
+    background: #01030a;
 }
 
 body {
     display: flex;
     align-items: center;
+    justify-content: center;
+    font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Visible screen area */
+/* MAIN NEON DISPLAY */
+.display {
+    position: relative;
+    width: 98%;
+    height: 88%;
+
+    display: flex;
+    align-items: center;
+
+    overflow: hidden;
+
+    background:
+        radial-gradient(circle at 15% 50%,
+        rgba(255, 0, 170, .10),
+        transparent 30%),
+
+        radial-gradient(circle at 85% 50%,
+        rgba(0, 180, 255, .10),
+        transparent 30%),
+
+        #01030a;
+
+    border: 3px solid #ff36d1;
+
+    border-radius: 24px;
+
+    box-shadow:
+        0 0 8px #ff36d1,
+        0 0 18px rgba(255,54,209,.8),
+        inset 0 0 15px rgba(255,54,209,.20),
+        inset 0 0 28px rgba(39,207,255,.15);
+}
+
+/* BLUE TOP ACCENT */
+.display:before {
+    content: "";
+    position: absolute;
+
+    top: -3px;
+    left: 30%;
+
+    width: 40%;
+    height: 3px;
+
+    background: #27cfff;
+
+    box-shadow:
+        0 0 8px #27cfff,
+        0 0 16px #27cfff;
+}
+
+/* SONG AREA */
 .marquee {
-    width: 100%;
+    position: absolute;
+
+    left: 11%;
+    width: 78%;
+
     overflow: hidden;
     white-space: nowrap;
 }
 
-/* Moving song title */
+/* SONG TEXT */
 #song {
     display: inline-block;
+
     padding-left: 100%;
 
-    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(42px, 7vw, 105px);
     font-weight: 900;
-    font-size: clamp(42px, 7vw, 100px);
 
     color: #ffffff;
 
     text-shadow:
         0 0 4px #ffffff,
-        0 0 10px #ff36d1,
-        0 0 18px #ff36d1,
-        0 0 28px #27cfff;
+        0 0 8px #ffffff,
+        0 0 13px #ff36d1,
+        0 0 22px #ff36d1,
+        0 0 30px #27cfff;
 
     animation: scrollSong 14s linear infinite;
 }
 
-/* Right → Left scrolling */
 @keyframes scrollSong {
+
     from {
         transform: translateX(0);
     }
@@ -55,14 +116,136 @@ body {
         transform: translateX(-100%);
     }
 }
+
+
+/* EQUALIZERS */
+
+.eq {
+    position: absolute;
+
+    bottom: 20%;
+
+    height: 60%;
+    width: 8%;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    gap: 5px;
+}
+
+.eq.left {
+    left: 1%;
+}
+
+.eq.right {
+    right: 1%;
+}
+
+.bar {
+    width: 8px;
+
+    min-height: 15%;
+
+    border-radius: 4px;
+
+    animation: bounce .8s ease-in-out infinite alternate;
+}
+
+/* PINK LEFT */
+.left .bar {
+    background: #ff36d1;
+
+    box-shadow:
+        0 0 6px #ff36d1,
+        0 0 12px #ff36d1;
+}
+
+/* BLUE RIGHT */
+.right .bar {
+    background: #27cfff;
+
+    box-shadow:
+        0 0 6px #27cfff,
+        0 0 12px #27cfff;
+}
+
+
+/* DIFFERENT BAR HEIGHTS */
+
+.bar:nth-child(1) {
+    height: 30%;
+    animation-delay: .1s;
+}
+
+.bar:nth-child(2) {
+    height: 55%;
+    animation-delay: .3s;
+}
+
+.bar:nth-child(3) {
+    height: 85%;
+    animation-delay: .15s;
+}
+
+.bar:nth-child(4) {
+    height: 65%;
+    animation-delay: .4s;
+}
+
+.bar:nth-child(5) {
+    height: 40%;
+    animation-delay: .2s;
+}
+
+@keyframes bounce {
+
+    from {
+        transform: scaleY(.35);
+    }
+
+    to {
+        transform: scaleY(1);
+    }
+}
+
 </style>
 </head>
 
+
 <body>
 
-<div class="marquee">
-    <div id="song">Loading...</div>
+<div class="display">
+
+    <!-- LEFT PINK EQUALIZER -->
+    <div class="eq left">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+    </div>
+
+
+    <!-- LIVE SONG -->
+    <div class="marquee">
+        <div id="song">Connecting to Slow Tide...</div>
+    </div>
+
+
+    <!-- RIGHT BLUE EQUALIZER -->
+    <div class="eq right">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+    </div>
+
 </div>
+
 
 <script>
 
@@ -81,25 +264,36 @@ async function updateSong() {
 
             lastSong = data.title;
 
-            const song = document.getElementById("song");
+            const song =
+                document.getElementById("song");
 
             song.textContent = data.title;
 
-            /* Restart scrolling when song changes */
+            /* Restart animation for new song */
+
             song.style.animation = "none";
+
             song.offsetHeight;
-            song.style.animation = "scrollSong 14s linear infinite";
+
+            song.style.animation =
+                "scrollSong 14s linear infinite";
         }
 
-    } catch (error) {
-        console.log("Waiting for song...");
+    }
+
+    catch (error) {
+
+        console.log(
+            "Waiting for Slow Tide stream..."
+        );
     }
 }
 
-/* Get song immediately */
+
+/* Load immediately */
 updateSong();
 
-/* Check station every 10 seconds */
+/* Check song every 10 seconds */
 setInterval(updateSong, 10000);
 
 </script>
