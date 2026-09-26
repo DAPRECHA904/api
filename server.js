@@ -16,10 +16,7 @@ const PORT = process.env.PORT || 3000;
 // ======================================================
 
 
-// ======================================================
-// DEFAULT STATION
-// ======================================================
-
+// Default station
 let currentStream =
     "http://mogullustradio.shoutcastnet.com:30800/stream";
 
@@ -30,8 +27,81 @@ let checking = false;
 
 
 // ======================================================
-// BASIC HTTP REQUEST
-// Used for JSON / status-page fallbacks
+// CLEAN TEXT / HTML
+// ======================================================
+
+function decodeText(value) {
+
+    if (value === undefined || value === null)
+        return null;
+
+    let text = String(value);
+
+    text = text
+        .replace(/&amp;/gi, "&")
+        .replace(/&quot;/gi, "\"")
+        .replace(/&#39;/gi, "'")
+        .replace(/&#039;/gi, "'")
+        .replace(/&apos;/gi, "'")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&nbsp;/gi, " ")
+
+        // Common broken UTF-8 punctuation
+        .replace(/â€“/g, "-")
+        .replace(/â€”/g, "-")
+        .replace(/âˆ’/g, "-")
+        .replace(/â€™/g, "'")
+        .replace(/â€œ/g, "\"")
+        .replace(/â€/g, "\"")
+        .replace(/â€¦/g, "...")
+        .replace(/â\?\?/g, "-")
+
+        .replace(/\0/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    return text || null;
+}
+
+
+function stripHTML(value) {
+
+    if (!value)
+        return null;
+
+    return decodeText(
+        String(value)
+            .replace(/<script[\s\S]*?<\/script>/gi, " ")
+            .replace(/<style[\s\S]*?<\/style>/gi, " ")
+            .replace(/<[^>]+>/g, " ")
+    );
+}
+
+
+function cleanTitle(value) {
+
+    let title = decodeText(value);
+
+    if (!title)
+        return null;
+
+    const lower = title.toLowerCase();
+
+    if (
+        lower === "unknown" ||
+        lower === "null" ||
+        lower === "undefined"
+    ) {
+        return null;
+    }
+
+    return title;
+}
+
+
+// ======================================================
+// BASIC HTTP FETCH
 // ======================================================
 
 function fetchText(urlString, timeout = 8000, redirects = 0) {
@@ -48,8 +118,8 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
         try {
             url = new URL(urlString);
         }
-        catch (err) {
-            reject(err);
+        catch (error) {
+            reject(error);
             return;
         }
 
@@ -72,16 +142,25 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
             method: "GET",
 
             headers: {
-                "User-Agent": "Mozilla/5.0 SlowTideNowPlaying",
-                "Accept": "*/*",
-                "Connection": "close"
+                "User-Agent":
+                    "Mozilla/5.0 SlowTideNowPlaying",
+
+                "Accept":
+                    "text/html,application/json,text/plain,*/*",
+
+                "Connection":
+                    "close"
             }
         };
+
 
         const request =
             client.request(options, response => {
 
-                // Follow redirects
+                // --------------------------------------
+                // REDIRECT
+                // --------------------------------------
+
                 if (
                     response.statusCode >= 300 &&
                     response.statusCode < 400 &&
@@ -107,6 +186,11 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
                     return;
                 }
 
+
+                // --------------------------------------
+                // HTTP ERROR
+                // --------------------------------------
+
                 if (
                     response.statusCode &&
                     response.statusCode >= 400
@@ -124,39 +208,70 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
                     return;
                 }
 
-                let data = "";
 
-                response.setEncoding("utf8");
+                const chunks = [];
+
+                let totalLength = 0;
+
 
                 response.on("data", chunk => {
 
-                    data += chunk;
+                    if (!Buffer.isBuffer(chunk)) {
+                        chunk = Buffer.from(chunk);
+                    }
 
-                    // Status responses should be tiny.
-                    if (data.length > 1000000) {
+                    chunks.push(chunk);
+
+                    totalLength += chunk.length;
+
+
+                    // Status pages should never need to
+                    // be larger than 1 MB.
+
+                    if (totalLength > 1000000) {
                         response.destroy();
                     }
                 });
 
+
                 response.on("end", () => {
-                    resolve(data);
+
+                    const buffer =
+                        Buffer.concat(chunks);
+
+                    resolve(
+                        buffer.toString("utf8")
+                    );
                 });
 
-                response.on("error", reject);
+
+                response.on(
+                    "error",
+                    reject
+                );
             });
 
-        request.on("error", reject);
 
-        request.setTimeout(timeout, () => {
+        request.on(
+            "error",
+            reject
+        );
 
-            request.destroy();
 
-            reject(
-                new Error(
-                    "Request timed out"
-                )
-            );
-        });
+        request.setTimeout(
+            timeout,
+            () => {
+
+                request.destroy();
+
+                reject(
+                    new Error(
+                        "Request timed out"
+                    )
+                );
+            }
+        );
+
 
         request.end();
     });
@@ -164,7 +279,7 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
 
 
 // ======================================================
-// READ STANDARD ICY / SHOUTCAST / ICECAST METADATA
+// READ ICY STREAM METADATA
 // ======================================================
 
 function getIcyStreamTitle(streamUrl, redirects = 0) {
@@ -182,6 +297,7 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
             return;
         }
 
+
         let url;
 
         try {
@@ -192,10 +308,12 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
             return;
         }
 
+
         const client =
             url.protocol === "https:"
                 ? https
                 : http;
+
 
         const options = {
 
@@ -214,8 +332,6 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
 
                 "Icy-MetaData": "1",
 
-                "icy-metadata": "1",
-
                 "User-Agent":
                     "Mozilla/5.0 SlowTideNowPlaying",
 
@@ -227,9 +343,11 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
             }
         };
 
+
         let settled = false;
 
-        const finishResolve = value => {
+
+        function success(value) {
 
             if (settled)
                 return;
@@ -237,9 +355,10 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
             settled = true;
 
             resolve(value);
-        };
+        }
 
-        const finishReject = error => {
+
+        function failure(error) {
 
             if (settled)
                 return;
@@ -247,286 +366,268 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
             settled = true;
 
             reject(error);
-        };
+        }
 
 
         const request =
-            client.request(
-                options,
-                response => {
+            client.request(options, response => {
 
-                    // ------------------------------------------
-                    // FOLLOW REDIRECT
-                    // ------------------------------------------
+                // --------------------------------------
+                // REDIRECT
+                // --------------------------------------
 
-                    if (
-                        response.statusCode >= 300 &&
-                        response.statusCode < 400 &&
-                        response.headers.location
-                    ) {
+                if (
+                    response.statusCode >= 300 &&
+                    response.statusCode < 400 &&
+                    response.headers.location
+                ) {
 
-                        response.destroy();
+                    response.destroy();
 
-                        const redirectURL =
-                            new URL(
-                                response.headers.location,
-                                streamUrl
-                            ).toString();
+                    const redirectURL =
+                        new URL(
+                            response.headers.location,
+                            streamUrl
+                        ).toString();
 
-                        getIcyStreamTitle(
-                            redirectURL,
-                            redirects + 1
+                    getIcyStreamTitle(
+                        redirectURL,
+                        redirects + 1
+                    )
+                    .then(success)
+                    .catch(failure);
+
+                    return;
+                }
+
+
+                // --------------------------------------
+                // HTTP ERROR
+                // --------------------------------------
+
+                if (
+                    response.statusCode &&
+                    response.statusCode >= 400
+                ) {
+
+                    response.destroy();
+
+                    failure(
+                        new Error(
+                            "Station returned HTTP " +
+                            response.statusCode
                         )
-                        .then(finishResolve)
-                        .catch(finishReject);
+                    );
 
-                        return;
-                    }
-
-
-                    // ------------------------------------------
-                    // BAD RESPONSE
-                    // ------------------------------------------
-
-                    if (
-                        response.statusCode &&
-                        response.statusCode >= 400
-                    ) {
-
-                        response.destroy();
-
-                        finishReject(
-                            new Error(
-                                "Station returned HTTP " +
-                                response.statusCode
-                            )
-                        );
-
-                        return;
-                    }
+                    return;
+                }
 
 
-                    // ------------------------------------------
-                    // ICY META INTERVAL
-                    // ------------------------------------------
-
-                    const rawMetaInt =
-                        response.headers["icy-metaint"];
-
-                    const metaInt =
-                        parseInt(rawMetaInt);
-
-
-                    console.log(
-                        "ICY METAINT:",
-                        rawMetaInt || "NOT PROVIDED"
+                const metaInt =
+                    parseInt(
+                        response.headers[
+                            "icy-metaint"
+                        ]
                     );
 
 
-                    if (!metaInt || metaInt <= 0) {
+                if (!metaInt || metaInt <= 0) {
 
-                        response.destroy();
+                    response.destroy();
 
-                        finishReject(
-                            new Error(
-                                "No ICY metadata interval"
-                            )
-                        );
+                    failure(
+                        new Error(
+                            "No ICY metadata interval"
+                        )
+                    );
 
-                        return;
-                    }
-
-
-                    let audioBytes = 0;
-
-                    let metadataLength = null;
-
-                    let metadata =
-                        Buffer.alloc(0);
+                    return;
+                }
 
 
-                    response.on(
-                        "data",
-                        chunk => {
+                let audioBytes = 0;
 
-                            let offset = 0;
+                let metadataLength = null;
 
-                            while (
-                                offset < chunk.length
+                let metadata =
+                    Buffer.alloc(0);
+
+
+                response.on(
+                    "data",
+                    chunk => {
+
+                        let offset = 0;
+
+
+                        while (
+                            offset < chunk.length
+                        ) {
+
+                            // --------------------------------
+                            // SKIP AUDIO
+                            // --------------------------------
+
+                            if (
+                                audioBytes < metaInt
                             ) {
 
-                                // ----------------------------------
-                                // AUDIO DATA
-                                // ----------------------------------
-
-                                if (
-                                    audioBytes < metaInt
-                                ) {
-
-                                    const remaining =
-                                        metaInt -
-                                        audioBytes;
-
-                                    const amount =
-                                        Math.min(
-                                            remaining,
-                                            chunk.length -
-                                            offset
-                                        );
-
-                                    audioBytes +=
-                                        amount;
-
-                                    offset +=
-                                        amount;
-
-                                    continue;
-                                }
-
-
-                                // ----------------------------------
-                                // METADATA LENGTH BYTE
-                                // ----------------------------------
-
-                                if (
-                                    metadataLength ===
-                                    null
-                                ) {
-
-                                    metadataLength =
-                                        chunk[offset] * 16;
-
-                                    offset++;
-
-
-                                    if (
-                                        metadataLength === 0
-                                    ) {
-
-                                        audioBytes = 0;
-
-                                        metadataLength =
-                                            null;
-
-                                        metadata =
-                                            Buffer.alloc(0);
-
-                                        continue;
-                                    }
-                                }
-
-
-                                // ----------------------------------
-                                // READ METADATA
-                                // ----------------------------------
-
-                                const needed =
-                                    metadataLength -
-                                    metadata.length;
+                                const remaining =
+                                    metaInt -
+                                    audioBytes;
 
                                 const amount =
                                     Math.min(
-                                        needed,
+                                        remaining,
                                         chunk.length -
                                         offset
                                     );
 
-                                metadata =
-                                    Buffer.concat([
-                                        metadata,
-                                        chunk.subarray(
-                                            offset,
-                                            offset + amount
-                                        )
-                                    ]);
+                                audioBytes += amount;
 
                                 offset += amount;
 
+                                continue;
+                            }
 
-                                // ----------------------------------
-                                // COMPLETE METADATA BLOCK
-                                // ----------------------------------
+
+                            // --------------------------------
+                            // METADATA SIZE BYTE
+                            // --------------------------------
+
+                            if (
+                                metadataLength === null
+                            ) {
+
+                                metadataLength =
+                                    chunk[offset] * 16;
+
+                                offset++;
+
 
                                 if (
-                                    metadata.length >=
-                                    metadataLength
+                                    metadataLength === 0
                                 ) {
-
-                                    const text =
-                                        metadata
-                                        .toString("utf8")
-                                        .replace(/\0/g, "")
-                                        .trim();
-
-
-                                    console.log(
-                                        "ICY RAW:",
-                                        text
-                                    );
-
-
-                                    const match =
-                                        text.match(
-                                            /StreamTitle=['"]([^'"]*)['"]/i
-                                        );
-
-
-                                    if (
-                                        match &&
-                                        match[1] &&
-                                        match[1].trim()
-                                    ) {
-
-                                        response.destroy();
-
-                                        finishResolve(
-                                            match[1].trim()
-                                        );
-
-                                        return;
-                                    }
-
-
-                                    // No title in this metadata block.
-                                    // Continue until the next one.
 
                                     audioBytes = 0;
 
-                                    metadataLength =
-                                        null;
+                                    metadataLength = null;
 
                                     metadata =
                                         Buffer.alloc(0);
+
+                                    continue;
                                 }
                             }
+
+
+                            // --------------------------------
+                            // READ METADATA
+                            // --------------------------------
+
+                            const needed =
+                                metadataLength -
+                                metadata.length;
+
+
+                            const amount =
+                                Math.min(
+                                    needed,
+                                    chunk.length -
+                                    offset
+                                );
+
+
+                            metadata =
+                                Buffer.concat([
+                                    metadata,
+                                    chunk.subarray(
+                                        offset,
+                                        offset + amount
+                                    )
+                                ]);
+
+
+                            offset += amount;
+
+
+                            // --------------------------------
+                            // COMPLETE BLOCK
+                            // --------------------------------
+
+                            if (
+                                metadata.length >=
+                                metadataLength
+                            ) {
+
+                                const text =
+                                    metadata
+                                    .toString("utf8")
+                                    .replace(/\0/g, "");
+
+
+                                const match =
+                                    text.match(
+                                        /StreamTitle=['"]([^'"]*)['"]/i
+                                    );
+
+
+                                if (
+                                    match &&
+                                    match[1] &&
+                                    match[1].trim()
+                                ) {
+
+                                    response.destroy();
+
+                                    success(
+                                        cleanTitle(
+                                            match[1]
+                                        )
+                                    );
+
+                                    return;
+                                }
+
+
+                                // No title in this block.
+                                // Continue to next metadata block.
+
+                                audioBytes = 0;
+
+                                metadataLength = null;
+
+                                metadata =
+                                    Buffer.alloc(0);
+                            }
                         }
-                    );
+                    }
+                );
 
 
-                    response.on(
-                        "error",
-                        finishReject
-                    );
+                response.on(
+                    "error",
+                    failure
+                );
 
 
-                    response.on(
-                        "end",
-                        () => {
+                response.on(
+                    "end",
+                    () => {
 
-                            finishReject(
-                                new Error(
-                                    "Stream ended before metadata was found"
-                                )
-                            );
-                        }
-                    );
-                }
-            );
+                        failure(
+                            new Error(
+                                "Stream ended before metadata"
+                            )
+                        );
+                    }
+                );
+            });
 
 
         request.on(
             "error",
-            finishReject
+            failure
         );
 
 
@@ -536,7 +637,7 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
 
                 request.destroy();
 
-                finishReject(
+                failure(
                     new Error(
                         "Radio connection timed out"
                     )
@@ -551,471 +652,8 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
 
 
 // ======================================================
-// CLEAN TITLE
-// ======================================================
-
-function cleanTitle(value) {
-
-    if (
-        value === undefined ||
-        value === null
-    ) {
-        return null;
-    }
-
-    let title =
-        String(value)
-        .replace(/\0/g, "")
-        .replace(/&amp;/gi, "&")
-        .replace(/&#39;/gi, "'")
-        .replace(/&quot;/gi, "\"")
-        .replace(/&lt;/gi, "<")
-        .replace(/&gt;/gi, ">")
-        .trim();
-
-
-    if (!title)
-        return null;
-
-
-    const lower =
-        title.toLowerCase();
-
-
-    // Reject values that obviously aren't song titles.
-
-    if (
-        lower === "unknown" ||
-        lower === "null" ||
-        lower === "undefined"
-    ) {
-        return null;
-    }
-
-
-    return title;
-}
-
-
-// ======================================================
-// SEARCH OBJECT RECURSIVELY FOR SONG TITLE
-// ======================================================
-
-function findTitleInObject(obj) {
-
-    if (!obj)
-        return null;
-
-
-    if (Array.isArray(obj)) {
-
-        for (const item of obj) {
-
-            const found =
-                findTitleInObject(item);
-
-            if (found)
-                return found;
-        }
-
-        return null;
-    }
-
-
-    if (
-        typeof obj !== "object"
-    ) {
-        return null;
-    }
-
-
-    // ------------------------------------------
-    // COMMON SHOUTCAST / ICECAST FIELDS
-    // ------------------------------------------
-
-    const directFields = [
-
-        "songtitle",
-        "songTitle",
-
-        "streamtitle",
-        "streamTitle",
-
-        "StreamTitle",
-
-        "current_song",
-        "currentSong",
-
-        "now_playing",
-        "nowPlaying",
-
-        "title"
-    ];
-
-
-    for (
-        const field of directFields
-    ) {
-
-        if (
-            Object.prototype
-            .hasOwnProperty
-            .call(obj, field)
-        ) {
-
-            const value =
-                obj[field];
-
-
-            // Some APIs use:
-            //
-            // now_playing:
-            // {
-            //    song: {
-            //       artist: "...",
-            //       title: "..."
-            //    }
-            // }
-
-            if (
-                value &&
-                typeof value === "object"
-            ) {
-
-                const nested =
-                    findTitleInObject(
-                        value
-                    );
-
-                if (nested)
-                    return nested;
-            }
-
-            else {
-
-                const cleaned =
-                    cleanTitle(value);
-
-                if (cleaned)
-                    return cleaned;
-            }
-        }
-    }
-
-
-    // ------------------------------------------
-    // ARTIST + TITLE
-    // ------------------------------------------
-
-    if (
-        obj.artist &&
-        obj.title &&
-        typeof obj.artist !== "object" &&
-        typeof obj.title !== "object"
-    ) {
-
-        const artist =
-            cleanTitle(obj.artist);
-
-        const song =
-            cleanTitle(obj.title);
-
-
-        if (artist && song) {
-
-            return (
-                artist +
-                " - " +
-                song
-            );
-        }
-    }
-
-
-    // ------------------------------------------
-    // RECURSIVE SEARCH
-    // ------------------------------------------
-
-    for (
-        const key of Object.keys(obj)
-    ) {
-
-        const value =
-            obj[key];
-
-
-        if (
-            value &&
-            typeof value === "object"
-        ) {
-
-            const found =
-                findTitleInObject(
-                    value
-                );
-
-            if (found)
-                return found;
-        }
-    }
-
-
-    return null;
-}
-
-
-// ======================================================
-// TRY JSON STATUS URL
-// ======================================================
-
-async function tryJsonURL(url) {
-
-    try {
-
-        const text =
-            await fetchText(url);
-
-
-        if (!text)
-            return null;
-
-
-        const json =
-            JSON.parse(text);
-
-
-        const title =
-            findTitleInObject(json);
-
-
-        if (title) {
-
-            console.log(
-                "STATUS API TITLE:",
-                title
-            );
-
-            return title;
-        }
-
-    }
-
-    catch (error) {
-
-        // Quiet fallback.
-    }
-
-
-    return null;
-}
-
-
-// ======================================================
-// SHOUTCAST 7.HTML FALLBACK
-// ======================================================
-
-async function tryShoutcast7HTML(baseURL) {
-
-    try {
-
-        const text =
-            await fetchText(
-                baseURL + "/7.html"
-            );
-
-
-        if (!text)
-            return null;
-
-
-        // Old Shoutcast format commonly resembles:
-        //
-        // <body>listeners,status,peak,max,unique,bitrate,Song Title</body>
-
-
-        const stripped =
-            text
-            .replace(/<[^>]*>/g, "")
-            .trim();
-
-
-        const parts =
-            stripped.split(",");
-
-
-        if (parts.length >= 7) {
-
-            const title =
-                cleanTitle(
-                    parts.slice(6).join(",")
-                );
-
-
-            if (title) {
-
-                console.log(
-                    "SHOUTCAST 7.HTML TITLE:",
-                    title
-                );
-
-                return title;
-            }
-        }
-
-    }
-
-    catch (error) {
-
-        // Quiet fallback.
-    }
-
-
-    return null;
-}
-
-
-// ======================================================
-// STATUS PAGE FALLBACK
-// ======================================================
-
-async function tryStatusPage(baseURL) {
-
-    const pages = [
-
-        "/status-json.xsl",
-
-        "/stats?sid=1&json=1",
-
-        "/stats?sid=1",
-
-        "/currentsong?sid=1",
-
-        "/7.html"
-    ];
-
-
-    for (
-        const path of pages
-    ) {
-
-        const url =
-            baseURL + path;
-
-
-        // ------------------------------------------
-        // OLD SHOUTCAST
-        // ------------------------------------------
-
-        if (
-            path === "/7.html"
-        ) {
-
-            const title =
-                await tryShoutcast7HTML(
-                    baseURL
-                );
-
-            if (title)
-                return title;
-
-            continue;
-        }
-
-
-        // ------------------------------------------
-        // JSON
-        // ------------------------------------------
-
-        try {
-
-            const text =
-                await fetchText(url);
-
-
-            if (!text)
-                continue;
-
-
-            // Try JSON first.
-
-            try {
-
-                const json =
-                    JSON.parse(text);
-
-                const title =
-                    findTitleInObject(
-                        json
-                    );
-
-                if (title) {
-
-                    console.log(
-                        "FALLBACK TITLE:",
-                        title
-                    );
-
-                    return title;
-                }
-
-            }
-
-            catch (jsonError) {
-
-                // Not JSON.
-            }
-
-
-            // --------------------------------------
-            // PLAIN TEXT CURRENT SONG
-            // --------------------------------------
-
-            if (
-                path.includes(
-                    "currentsong"
-                )
-            ) {
-
-                const plain =
-                    cleanTitle(
-                        text.replace(
-                            /<[^>]*>/g,
-                            ""
-                        )
-                    );
-
-
-                if (
-                    plain &&
-                    plain.length < 500
-                ) {
-
-                    console.log(
-                        "CURRENTSONG TITLE:",
-                        plain
-                    );
-
-                    return plain;
-                }
-            }
-
-        }
-
-        catch (error) {
-
-            // Keep trying.
-        }
-    }
-
-
-    return null;
-}
-
-
-// ======================================================
-// GET BASE RADIO SERVER
+// GET RADIO SERVER BASE
 //
-// Example:
 // http://station.com:8000/stream
 //
 // becomes:
@@ -1046,14 +684,595 @@ function getRadioBase(streamUrl) {
 
 
 // ======================================================
-// MASTER METADATA LOOKUP
+// FIND TITLE IN JSON
+// ======================================================
+
+function findTitleInObject(obj) {
+
+    if (!obj)
+        return null;
+
+
+    if (Array.isArray(obj)) {
+
+        for (const item of obj) {
+
+            const found =
+                findTitleInObject(item);
+
+            if (found)
+                return found;
+        }
+
+        return null;
+    }
+
+
+    if (
+        typeof obj !== "object"
+    ) {
+        return null;
+    }
+
+
+    // --------------------------------------
+    // ARTIST + TITLE
+    // --------------------------------------
+
+    if (
+        obj.artist &&
+        obj.title &&
+        typeof obj.artist !== "object" &&
+        typeof obj.title !== "object"
+    ) {
+
+        const artist =
+            cleanTitle(obj.artist);
+
+        const song =
+            cleanTitle(obj.title);
+
+
+        if (artist && song) {
+
+            return (
+                artist +
+                " - " +
+                song
+            );
+        }
+    }
+
+
+    // --------------------------------------
+    // COMMON CURRENT SONG FIELDS
+    // --------------------------------------
+
+    const fields = [
+
+        "songtitle",
+        "songTitle",
+
+        "streamtitle",
+        "streamTitle",
+
+        "StreamTitle",
+
+        "current_song",
+        "currentSong",
+
+        "now_playing",
+        "nowPlaying"
+    ];
+
+
+    for (const field of fields) {
+
+        if (
+            Object.prototype
+                .hasOwnProperty
+                .call(obj, field)
+        ) {
+
+            const value =
+                obj[field];
+
+
+            if (
+                value &&
+                typeof value === "object"
+            ) {
+
+                const nested =
+                    findTitleInObject(
+                        value
+                    );
+
+                if (nested)
+                    return nested;
+            }
+
+            else {
+
+                const title =
+                    cleanTitle(value);
+
+                if (title)
+                    return title;
+            }
+        }
+    }
+
+
+    // --------------------------------------
+    // ICECAST TITLE
+    // --------------------------------------
+
+    if (
+        obj.title &&
+        typeof obj.title !== "object"
+    ) {
+
+        const title =
+            cleanTitle(obj.title);
+
+        if (title)
+            return title;
+    }
+
+
+    // --------------------------------------
+    // RECURSIVE SEARCH
+    // --------------------------------------
+
+    for (
+        const key of Object.keys(obj)
+    ) {
+
+        const value =
+            obj[key];
+
+
+        if (
+            value &&
+            typeof value === "object"
+        ) {
+
+            const found =
+                findTitleInObject(
+                    value
+                );
+
+            if (found)
+                return found;
+        }
+    }
+
+
+    return null;
+}
+
+
+// ======================================================
+// SHOUTCAST INDEX.HTML PLAYING NOW
+// ======================================================
+
+async function tryShoutcastIndex(baseURL) {
+
+    try {
+
+        const url =
+            baseURL +
+            "/index.html?sid=1";
+
+
+        const html =
+            await fetchText(url);
+
+
+        if (!html)
+            return null;
+
+
+        // ==================================================
+        // Southern Boi / standard Shoutcast status page
+        //
+        // Example:
+        //
+        // Playing Now:
+        // Willie Taylor ... - Harder Deeper
+        // ==================================================
+
+
+        const normalized =
+            html
+            .replace(/\r/g, " ")
+            .replace(/\n/g, " ")
+            .replace(/\t/g, " ");
+
+
+        // First attempt:
+        // Look between "Playing Now:" and the next HTML tag.
+
+        let match =
+            normalized.match(
+                /Playing\s*Now\s*:\s*(?:<\/?[^>]+>\s*)*([^<]+)/i
+            );
+
+
+        if (
+            match &&
+            match[1]
+        ) {
+
+            const title =
+                cleanTitle(
+                    stripHTML(
+                        match[1]
+                    )
+                );
+
+
+            if (title) {
+
+                console.log(
+                    "SHOUTCAST PLAYING NOW:",
+                    title
+                );
+
+                return title;
+            }
+        }
+
+
+        // ==================================================
+        // SECOND METHOD
+        //
+        // Strip HTML and look for Playing Now in plain text.
+        // ==================================================
+
+        const plain =
+            stripHTML(html);
+
+
+        if (plain) {
+
+            match =
+                plain.match(
+                    /Playing\s*Now\s*:\s*(.+?)(?=\s+(?:Stream|Listener|Avg\.|Server|Current|$))/i
+                );
+
+
+            if (
+                match &&
+                match[1]
+            ) {
+
+                const title =
+                    cleanTitle(
+                        match[1]
+                    );
+
+
+                if (title) {
+
+                    console.log(
+                        "SHOUTCAST PLAYING NOW:",
+                        title
+                    );
+
+                    return title;
+                }
+            }
+        }
+
+    }
+
+    catch (error) {
+
+        console.log(
+            "Shoutcast index lookup failed:",
+            error.message
+        );
+    }
+
+
+    return null;
+}
+
+
+// ======================================================
+// OLD SHOUTCAST /7.HTML
+// ======================================================
+
+async function tryShoutcast7HTML(baseURL) {
+
+    try {
+
+        const text =
+            await fetchText(
+                baseURL +
+                "/7.html"
+            );
+
+
+        if (!text)
+            return null;
+
+
+        const stripped =
+            stripHTML(text);
+
+
+        if (!stripped)
+            return null;
+
+
+        const parts =
+            stripped.split(",");
+
+
+        if (
+            parts.length >= 7
+        ) {
+
+            const title =
+                cleanTitle(
+                    parts
+                        .slice(6)
+                        .join(",")
+                );
+
+
+            if (title) {
+
+                console.log(
+                    "SHOUTCAST 7.HTML:",
+                    title
+                );
+
+                return title;
+            }
+        }
+
+    }
+
+    catch (error) {
+
+        // Keep trying other methods.
+    }
+
+
+    return null;
+}
+
+
+// ======================================================
+// PLAIN CURRENT SONG ENDPOINT
+// ======================================================
+
+async function tryCurrentSong(baseURL) {
+
+    const endpoints = [
+
+        "/currentsong?sid=1",
+
+        "/currentsong?sid=1&json=1"
+    ];
+
+
+    for (
+        const endpoint of endpoints
+    ) {
+
+        try {
+
+            const text =
+                await fetchText(
+                    baseURL +
+                    endpoint
+                );
+
+
+            if (!text)
+                continue;
+
+
+            // Try JSON first.
+
+            try {
+
+                const json =
+                    JSON.parse(text);
+
+
+                const found =
+                    findTitleInObject(
+                        json
+                    );
+
+
+                if (found)
+                    return found;
+            }
+
+            catch (error) {
+
+                // Not JSON.
+            }
+
+
+            const title =
+                cleanTitle(
+                    stripHTML(text)
+                );
+
+
+            if (
+                title &&
+                title.length < 500
+            ) {
+
+                console.log(
+                    "CURRENTSONG:",
+                    title
+                );
+
+                return title;
+            }
+
+        }
+
+        catch (error) {
+
+            // Continue.
+        }
+    }
+
+
+    return null;
+}
+
+
+// ======================================================
+// ICECAST STATUS JSON
+// ======================================================
+
+async function tryIcecastJSON(baseURL) {
+
+    try {
+
+        const text =
+            await fetchText(
+                baseURL +
+                "/status-json.xsl"
+            );
+
+
+        if (!text)
+            return null;
+
+
+        const json =
+            JSON.parse(text);
+
+
+        const title =
+            findTitleInObject(
+                json
+            );
+
+
+        if (title) {
+
+            console.log(
+                "ICECAST TITLE:",
+                title
+            );
+
+            return title;
+        }
+
+    }
+
+    catch (error) {
+
+        // Continue to next method.
+    }
+
+
+    return null;
+}
+
+
+// ======================================================
+// SHOUTCAST STATS JSON
+// ======================================================
+
+async function tryShoutcastStats(baseURL) {
+
+    const endpoints = [
+
+        "/stats?sid=1&json=1",
+
+        "/stats?sid=1"
+    ];
+
+
+    for (
+        const endpoint of endpoints
+    ) {
+
+        try {
+
+            const text =
+                await fetchText(
+                    baseURL +
+                    endpoint
+                );
+
+
+            if (!text)
+                continue;
+
+
+            // Try JSON
+
+            try {
+
+                const json =
+                    JSON.parse(text);
+
+
+                const title =
+                    findTitleInObject(
+                        json
+                    );
+
+
+                if (title) {
+
+                    console.log(
+                        "SHOUTCAST STATS:",
+                        title
+                    );
+
+                    return title;
+                }
+            }
+
+            catch (error) {
+
+                // Not JSON.
+            }
+
+        }
+
+        catch (error) {
+
+            // Continue.
+        }
+    }
+
+
+    return null;
+}
+
+
+// ======================================================
+// MASTER SONG LOOKUP
 // ======================================================
 
 async function getStreamTitle(streamUrl) {
 
+    console.log(
+        "Checking metadata for:",
+        streamUrl
+    );
+
+
     // ==================================================
-    // METHOD 1
-    // Standard ICY embedded metadata
+    // 1. STANDARD ICY
     // ==================================================
 
     try {
@@ -1064,8 +1283,15 @@ async function getStreamTitle(streamUrl) {
             );
 
 
-        if (title)
+        if (title) {
+
+            console.log(
+                "ICY TITLE:",
+                title
+            );
+
             return title;
+        }
 
     }
 
@@ -1078,28 +1304,90 @@ async function getStreamTitle(streamUrl) {
     }
 
 
-    // ==================================================
-    // METHOD 2
-    // Check radio server status APIs
-    // ==================================================
-
     const base =
         getRadioBase(
             streamUrl
         );
 
 
-    if (base) {
+    if (!base) {
 
-        const title =
-            await tryStatusPage(
-                base
-            );
-
-
-        if (title)
-            return title;
+        throw new Error(
+            "Unable to determine radio server"
+        );
     }
+
+
+    // ==================================================
+    // 2. SHOUTCAST PLAYING NOW PAGE
+    //
+    // This is the important Southern Boi fallback.
+    // ==================================================
+
+    let title =
+        await tryShoutcastIndex(
+            base
+        );
+
+
+    if (title)
+        return title;
+
+
+    // ==================================================
+    // 3. SHOUTCAST CURRENTSONG
+    // ==================================================
+
+    title =
+        await tryCurrentSong(
+            base
+        );
+
+
+    if (title)
+        return title;
+
+
+    // ==================================================
+    // 4. SHOUTCAST STATS
+    // ==================================================
+
+    title =
+        await tryShoutcastStats(
+            base
+        );
+
+
+    if (title)
+        return title;
+
+
+    // ==================================================
+    // 5. ICECAST STATUS
+    // ==================================================
+
+    title =
+        await tryIcecastJSON(
+            base
+        );
+
+
+    if (title)
+        return title;
+
+
+    // ==================================================
+    // 6. OLD SHOUTCAST 7.HTML
+    // ==================================================
+
+    title =
+        await tryShoutcast7HTML(
+            base
+        );
+
+
+    if (title)
+        return title;
 
 
     throw new Error(
@@ -1121,9 +1409,7 @@ async function updateNowPlaying() {
     checking = true;
 
 
-    // Remember which station we're checking.
-    // This prevents an old request from overwriting
-    // metadata after a DJ changes stations.
+    // Remember which station this request belongs to.
 
     const streamBeingChecked =
         currentStream;
@@ -1137,28 +1423,29 @@ async function updateNowPlaying() {
             );
 
 
-        // Station changed while we were checking.
+        // DJ changed station while metadata
+        // request was still running.
+
         if (
             streamBeingChecked !==
             currentStream
         ) {
 
             console.log(
-                "Station changed during metadata check. Ignoring old result."
+                "Ignoring metadata from previous station."
             );
 
             return;
         }
 
 
-        if (title) {
+        const cleaned =
+            cleanTitle(title);
 
-            const cleaned =
-                cleanTitle(title);
 
+        if (cleaned) {
 
             if (
-                cleaned &&
                 cleaned !==
                 currentTitle
             ) {
@@ -1184,8 +1471,9 @@ async function updateNowPlaying() {
         );
 
 
-        // Don't overwrite a good previous song
-        // during a temporary station hiccup.
+        // Only show this while connecting.
+        // Don't erase a valid song because
+        // of one temporary failed lookup.
 
         if (
             currentTitle ===
@@ -1205,7 +1493,7 @@ async function updateNowPlaying() {
 
 
 // ======================================================
-// SERVER STATUS
+// STATUS API
 // ======================================================
 
 app.get(
@@ -1237,7 +1525,7 @@ app.get(
 
 // ======================================================
 // NOW PLAYING API
-// Second Life media display reads this
+// Used by the Second Life media prim
 // ======================================================
 
 app.get(
@@ -1266,8 +1554,8 @@ app.get(
 
 
 // ======================================================
-// CHANGE RADIO API
-// Second Life controller sends the new stream here
+// CHANGE ACTIVE RADIO
+// Called by the Second Life controller
 // ======================================================
 
 app.post(
@@ -1301,7 +1589,7 @@ app.post(
 
 
         // ----------------------------------------------
-        // VALIDATE URL
+        // VALIDATE
         // ----------------------------------------------
 
         try {
@@ -1337,11 +1625,12 @@ app.post(
 
 
         // ----------------------------------------------
-        // CHANGE ACTIVE STATION
+        // CHANGE STATION
         // ----------------------------------------------
 
         const changed =
-            stream !== currentStream;
+            stream !==
+            currentStream;
 
 
         currentStream =
@@ -1374,7 +1663,7 @@ app.post(
 
 
         // ----------------------------------------------
-        // RESPOND TO SECOND LIFE IMMEDIATELY
+        // RESPOND TO SECOND LIFE NOW
         // ----------------------------------------------
 
         res.status(200).json({
@@ -1390,13 +1679,11 @@ app.post(
 
 
         // ----------------------------------------------
-        // LOOK UP SONG AFTER RESPONSE
+        // IMMEDIATELY CHECK NEW STATION
         // ----------------------------------------------
 
         setTimeout(
-            () => {
-                updateNowPlaying();
-            },
+            updateNowPlaying,
             500
         );
     }
@@ -1404,8 +1691,7 @@ app.post(
 
 
 // ======================================================
-// MANUAL REFRESH
-// Useful for testing
+// MANUAL REFRESH / TEST
 // ======================================================
 
 app.get(
@@ -1466,7 +1752,7 @@ app.listen(
         );
 
 
-        // Initial metadata lookup
+        // Initial check
 
         setTimeout(
             updateNowPlaying,
@@ -1474,7 +1760,7 @@ app.listen(
         );
 
 
-        // Keep following the currently selected station.
+        // Recheck current station every 10 seconds.
 
         setInterval(
             updateNowPlaying,
