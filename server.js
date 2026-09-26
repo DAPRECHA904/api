@@ -1,11 +1,30 @@
 const express = require("express");
 const http = require("http");
 const https = require("https");
+const path = require("path");
 
 const app = express();
 
 app.use(express.json());
 app.use(express.static(__dirname));
+
+
+// ======================================================
+// SLOW TIDE LYRICS TV
+// ======================================================
+
+app.get("/lyrics", (req, res) => {
+    res.sendFile(
+        path.join(__dirname, "lyrics.html")
+    );
+});
+
+app.get("/lyrics.html", (req, res) => {
+    res.sendFile(
+        path.join(__dirname, "lyrics.html")
+    );
+});
+
 
 const PORT = process.env.PORT || 3000;
 
@@ -210,7 +229,6 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
 
 
                 const chunks = [];
-
                 let totalLength = 0;
 
 
@@ -224,9 +242,6 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
 
                     totalLength += chunk.length;
 
-
-                    // Status pages should never need to
-                    // be larger than 1 MB.
 
                     if (totalLength > 1000000) {
                         response.destroy();
@@ -590,9 +605,6 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
                                 }
 
 
-                                // No title in this block.
-                                // Continue to next metadata block.
-
                                 audioBytes = 0;
 
                                 metadataLength = null;
@@ -653,12 +665,6 @@ function getIcyStreamTitle(streamUrl, redirects = 0) {
 
 // ======================================================
 // GET RADIO SERVER BASE
-//
-// http://station.com:8000/stream
-//
-// becomes:
-//
-// http://station.com:8000
 // ======================================================
 
 function getRadioBase(streamUrl) {
@@ -715,10 +721,6 @@ function findTitleInObject(obj) {
     }
 
 
-    // --------------------------------------
-    // ARTIST + TITLE
-    // --------------------------------------
-
     if (
         obj.artist &&
         obj.title &&
@@ -743,10 +745,6 @@ function findTitleInObject(obj) {
         }
     }
 
-
-    // --------------------------------------
-    // COMMON CURRENT SONG FIELDS
-    // --------------------------------------
 
     const fields = [
 
@@ -804,10 +802,6 @@ function findTitleInObject(obj) {
     }
 
 
-    // --------------------------------------
-    // ICECAST TITLE
-    // --------------------------------------
-
     if (
         obj.title &&
         typeof obj.title !== "object"
@@ -820,10 +814,6 @@ function findTitleInObject(obj) {
             return title;
     }
 
-
-    // --------------------------------------
-    // RECURSIVE SEARCH
-    // --------------------------------------
 
     for (
         const key of Object.keys(obj)
@@ -874,25 +864,12 @@ async function tryShoutcastIndex(baseURL) {
             return null;
 
 
-        // ==================================================
-        // Southern Boi / standard Shoutcast status page
-        //
-        // Example:
-        //
-        // Playing Now:
-        // Willie Taylor ... - Harder Deeper
-        // ==================================================
-
-
         const normalized =
             html
             .replace(/\r/g, " ")
             .replace(/\n/g, " ")
             .replace(/\t/g, " ");
 
-
-        // First attempt:
-        // Look between "Playing Now:" and the next HTML tag.
 
         let match =
             normalized.match(
@@ -924,12 +901,6 @@ async function tryShoutcastIndex(baseURL) {
             }
         }
 
-
-        // ==================================================
-        // SECOND METHOD
-        //
-        // Strip HTML and look for Playing Now in plain text.
-        // ==================================================
 
         const plain =
             stripHTML(html);
@@ -1039,7 +1010,7 @@ async function tryShoutcast7HTML(baseURL) {
 
     catch (error) {
 
-        // Keep trying other methods.
+        // Keep trying.
     }
 
 
@@ -1077,8 +1048,6 @@ async function tryCurrentSong(baseURL) {
             if (!text)
                 continue;
 
-
-            // Try JSON first.
 
             try {
 
@@ -1177,7 +1146,7 @@ async function tryIcecastJSON(baseURL) {
 
     catch (error) {
 
-        // Continue to next method.
+        // Continue.
     }
 
 
@@ -1215,8 +1184,6 @@ async function tryShoutcastStats(baseURL) {
             if (!text)
                 continue;
 
-
-            // Try JSON
 
             try {
 
@@ -1271,9 +1238,7 @@ async function getStreamTitle(streamUrl) {
     );
 
 
-    // ==================================================
     // 1. STANDARD ICY
-    // ==================================================
 
     try {
 
@@ -1318,11 +1283,7 @@ async function getStreamTitle(streamUrl) {
     }
 
 
-    // ==================================================
     // 2. SHOUTCAST PLAYING NOW PAGE
-    //
-    // This is the important Southern Boi fallback.
-    // ==================================================
 
     let title =
         await tryShoutcastIndex(
@@ -1334,9 +1295,7 @@ async function getStreamTitle(streamUrl) {
         return title;
 
 
-    // ==================================================
     // 3. SHOUTCAST CURRENTSONG
-    // ==================================================
 
     title =
         await tryCurrentSong(
@@ -1348,9 +1307,7 @@ async function getStreamTitle(streamUrl) {
         return title;
 
 
-    // ==================================================
     // 4. SHOUTCAST STATS
-    // ==================================================
 
     title =
         await tryShoutcastStats(
@@ -1362,9 +1319,7 @@ async function getStreamTitle(streamUrl) {
         return title;
 
 
-    // ==================================================
     // 5. ICECAST STATUS
-    // ==================================================
 
     title =
         await tryIcecastJSON(
@@ -1376,9 +1331,7 @@ async function getStreamTitle(streamUrl) {
         return title;
 
 
-    // ==================================================
     // 6. OLD SHOUTCAST 7.HTML
-    // ==================================================
 
     title =
         await tryShoutcast7HTML(
@@ -1409,8 +1362,6 @@ async function updateNowPlaying() {
     checking = true;
 
 
-    // Remember which station this request belongs to.
-
     const streamBeingChecked =
         currentStream;
 
@@ -1422,9 +1373,6 @@ async function updateNowPlaying() {
                 streamBeingChecked
             );
 
-
-        // DJ changed station while metadata
-        // request was still running.
 
         if (
             streamBeingChecked !==
@@ -1470,10 +1418,6 @@ async function updateNowPlaying() {
             error.message
         );
 
-
-        // Only show this while connecting.
-        // Don't erase a valid song because
-        // of one temporary failed lookup.
 
         if (
             currentTitle ===
@@ -1525,7 +1469,6 @@ app.get(
 
 // ======================================================
 // NOW PLAYING API
-// Used by the Second Life media prim
 // ======================================================
 
 app.get(
@@ -1555,7 +1498,7 @@ app.get(
 
 // ======================================================
 // CHANGE ACTIVE RADIO
-// Called by the Second Life controller
+// Called by Second Life controller
 // ======================================================
 
 app.post(
@@ -1588,10 +1531,6 @@ app.post(
             stream.trim();
 
 
-        // ----------------------------------------------
-        // VALIDATE
-        // ----------------------------------------------
-
         try {
 
             const parsed =
@@ -1623,10 +1562,6 @@ app.post(
                 });
         }
 
-
-        // ----------------------------------------------
-        // CHANGE STATION
-        // ----------------------------------------------
 
         const changed =
             stream !==
@@ -1662,10 +1597,6 @@ app.post(
         }
 
 
-        // ----------------------------------------------
-        // RESPOND TO SECOND LIFE NOW
-        // ----------------------------------------------
-
         res.status(200).json({
 
             success: true,
@@ -1677,10 +1608,6 @@ app.post(
                 currentStream
         });
 
-
-        // ----------------------------------------------
-        // IMMEDIATELY CHECK NEW STATION
-        // ----------------------------------------------
 
         setTimeout(
             updateNowPlaying,
@@ -1748,19 +1675,19 @@ app.listen(
         );
 
         console.log(
+            "Lyrics TV: /lyrics"
+        );
+
+        console.log(
             "================================"
         );
 
-
-        // Initial check
 
         setTimeout(
             updateNowPlaying,
             1000
         );
 
-
-        // Recheck current station every 10 seconds.
 
         setInterval(
             updateNowPlaying,
