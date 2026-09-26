@@ -1,191 +1,346 @@
 const express = require("express");
 const http = require("http");
+const https = require("https");
 
 const app = express();
+
 app.use(express.json());
 app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
 
-// Default station when server starts
+
+// ======================================================
+// SLOW TIDE NOW PLAYING SERVER
+// Da Obsidian Court
+// ======================================================
+
+// Default radio station
 let currentStream =
-  "http://mogullustradio.shoutcastnet.com:30800/stream";
+    "http://mogullustradio.shoutcastnet.com:30800/stream";
 
-let currentTitle = "Connecting to Slow Tide...";
+let currentTitle =
+    "Connecting to Slow Tide...";
 
 
-// --------------------------------------------------
-// Read ICY / SHOUTCAST metadata
-// --------------------------------------------------
+// ======================================================
+// READ SHOUTCAST / ICECAST METADATA
+// ======================================================
 
-function getStreamTitle(streamUrl) {
+function getStreamTitle(streamUrl, redirects = 0) {
 
     return new Promise((resolve, reject) => {
+
+        if (redirects > 5) {
+            reject(new Error("Too many redirects."));
+            return;
+        }
 
         try {
 
             const url = new URL(streamUrl);
 
+            const client =
+                url.protocol === "https:"
+                    ? https
+                    : http;
+
+
             const options = {
+
                 hostname: url.hostname,
-                port: url.port || 80,
-                path: url.pathname + url.search,
+
+                port:
+                    url.port ||
+                    (url.protocol === "https:"
+                        ? 443
+                        : 80),
+
+                path:
+                    url.pathname +
+                    url.search,
+
                 method: "GET",
 
                 headers: {
+
                     "Icy-MetaData": "1",
-                    "User-Agent": "SlowTideNowPlaying/1.0"
+
+                    "User-Agent":
+                        "Mozilla/5.0 SlowTideNowPlaying",
+
+                    "Accept":
+                        "*/*",
+
+                    "Connection":
+                        "close"
                 }
             };
 
 
-            const request = http.request(options, response => {
+            const request =
+                client.request(
+                    options,
+                    response => {
 
-                const metaInt =
-                    parseInt(response.headers["icy-metaint"]);
+                        // ------------------------------
+                        // FOLLOW REDIRECTS
+                        // ------------------------------
 
-                if (!metaInt) {
-
-                    response.destroy();
-
-                    reject(
-                        new Error(
-                            "Station does not provide ICY metadata."
-                        )
-                    );
-
-                    return;
-                }
-
-
-                let audioBytes = 0;
-                let metadataLength = null;
-                let metadata = Buffer.alloc(0);
-
-
-                response.on("data", chunk => {
-
-                    let offset = 0;
-
-
-                    while (offset < chunk.length) {
-
-                        // Skip audio until metadata point
-                        if (audioBytes < metaInt) {
-
-                            const remaining =
-                                metaInt - audioBytes;
-
-                            const amount =
-                                Math.min(
-                                    remaining,
-                                    chunk.length - offset
-                                );
-
-                            audioBytes += amount;
-                            offset += amount;
-
-                            continue;
-                        }
-
-
-                        // Read metadata length byte
-                        if (metadataLength === null) {
-
-                            metadataLength =
-                                chunk[offset] * 16;
-
-                            offset++;
-
-
-                            if (metadataLength === 0) {
-
-                                audioBytes = 0;
-                                metadataLength = null;
-
-                                continue;
-                            }
-                        }
-
-
-                        const needed =
-                            metadataLength -
-                            metadata.length;
-
-                        const amount =
-                            Math.min(
-                                needed,
-                                chunk.length - offset
-                            );
-
-
-                        metadata =
-                            Buffer.concat([
-                                metadata,
-                                chunk.subarray(
-                                    offset,
-                                    offset + amount
-                                )
-                            ]);
-
-
-                        offset += amount;
-
-
-                        // Complete metadata block
                         if (
-                            metadata.length >=
-                            metadataLength
+                            response.statusCode >= 300 &&
+                            response.statusCode < 400 &&
+                            response.headers.location
                         ) {
-
-                            const text =
-                                metadata
-                                .toString("utf8")
-                                .replace(/\0/g, "");
-
-
-                            const match =
-                                text.match(
-                                    /StreamTitle='([^']*)'/
-                                );
-
 
                             response.destroy();
 
+                            const redirectURL =
+                                new URL(
+                                    response.headers.location,
+                                    streamUrl
+                                ).toString();
 
-                            if (
-                                match &&
-                                match[1]
-                            ) {
-
-                                resolve(
-                                    match[1].trim()
-                                );
-
-                            } else {
-
-                                reject(
-                                    new Error(
-                                        "No StreamTitle found."
-                                    )
-                                );
-                            }
+                            getStreamTitle(
+                                redirectURL,
+                                redirects + 1
+                            )
+                            .then(resolve)
+                            .catch(reject);
 
                             return;
                         }
+
+
+                        // ------------------------------
+                        // CHECK RESPONSE
+                        // ------------------------------
+
+                        if (
+                            response.statusCode &&
+                            response.statusCode >= 400
+                        ) {
+
+                            response.destroy();
+
+                            reject(
+                                new Error(
+                                    "Station returned HTTP " +
+                                    response.statusCode
+                                )
+                            );
+
+                            return;
+                        }
+
+
+                        // ------------------------------
+                        // ICY METADATA INTERVAL
+                        // ------------------------------
+
+                        const metaInt =
+                            parseInt(
+                                response.headers[
+                                    "icy-metaint"
+                                ]
+                            );
+
+
+                        if (!metaInt) {
+
+                            response.destroy();
+
+                            reject(
+                                new Error(
+                                    "Station does not provide ICY metadata."
+                                )
+                            );
+
+                            return;
+                        }
+
+
+                        let audioBytes = 0;
+
+                        let metadataLength = null;
+
+                        let metadata =
+                            Buffer.alloc(0);
+
+
+                        // ------------------------------
+                        // READ STREAM
+                        // ------------------------------
+
+                        response.on(
+                            "data",
+                            chunk => {
+
+                                let offset = 0;
+
+
+                                while (
+                                    offset <
+                                    chunk.length
+                                ) {
+
+                                    // Skip audio bytes
+                                    if (
+                                        audioBytes <
+                                        metaInt
+                                    ) {
+
+                                        const remaining =
+                                            metaInt -
+                                            audioBytes;
+
+                                        const amount =
+                                            Math.min(
+                                                remaining,
+                                                chunk.length -
+                                                offset
+                                            );
+
+                                        audioBytes +=
+                                            amount;
+
+                                        offset +=
+                                            amount;
+
+                                        continue;
+                                    }
+
+
+                                    // Metadata length byte
+                                    if (
+                                        metadataLength ===
+                                        null
+                                    ) {
+
+                                        metadataLength =
+                                            chunk[offset] *
+                                            16;
+
+                                        offset++;
+
+
+                                        if (
+                                            metadataLength ===
+                                            0
+                                        ) {
+
+                                            audioBytes = 0;
+
+                                            metadataLength =
+                                                null;
+
+                                            continue;
+                                        }
+                                    }
+
+
+                                    const needed =
+                                        metadataLength -
+                                        metadata.length;
+
+
+                                    const amount =
+                                        Math.min(
+                                            needed,
+                                            chunk.length -
+                                            offset
+                                        );
+
+
+                                    metadata =
+                                        Buffer.concat([
+                                            metadata,
+
+                                            chunk.subarray(
+                                                offset,
+                                                offset +
+                                                amount
+                                            )
+                                        ]);
+
+
+                                    offset += amount;
+
+
+                                    // ------------------
+                                    // COMPLETE METADATA
+                                    // ------------------
+
+                                    if (
+                                        metadata.length >=
+                                        metadataLength
+                                    ) {
+
+                                        const text =
+                                            metadata
+                                            .toString(
+                                                "utf8"
+                                            )
+                                            .replace(
+                                                /\0/g,
+                                                ""
+                                            );
+
+
+                                        const match =
+                                            text.match(
+                                                /StreamTitle='([^']*)'/
+                                            );
+
+
+                                        response.destroy();
+
+
+                                        if (
+                                            match &&
+                                            match[1]
+                                        ) {
+
+                                            resolve(
+                                                match[1]
+                                                .trim()
+                                            );
+
+                                        } else {
+
+                                            reject(
+                                                new Error(
+                                                    "No StreamTitle found."
+                                                )
+                                            );
+                                        }
+
+                                        return;
+                                    }
+                                }
+                            }
+                        );
+
+
+                        response.on(
+                            "error",
+                            reject
+                        );
                     }
-                });
+                );
 
 
-                response.on("error", reject);
+            request.on(
+                "error",
+                reject
+            );
 
-            });
 
-
-            request.on("error", reject);
+            // Don't allow dead stations
+            // to hold the server forever.
 
             request.setTimeout(
-                10000,
+                12000,
                 () => {
 
                     request.destroy();
@@ -211,11 +366,22 @@ function getStreamTitle(streamUrl) {
 }
 
 
-// --------------------------------------------------
-// Poll current radio
-// --------------------------------------------------
+// ======================================================
+// UPDATE NOW PLAYING
+// ======================================================
+
+let checking = false;
+
 
 async function updateNowPlaying() {
+
+    // Prevent overlapping stream checks
+    if (checking)
+        return;
+
+
+    checking = true;
+
 
     try {
 
@@ -232,6 +398,7 @@ async function updateNowPlaying() {
 
             currentTitle = title;
 
+
             console.log(
                 "NOW PLAYING:",
                 currentTitle
@@ -243,38 +410,81 @@ async function updateNowPlaying() {
     catch (error) {
 
         console.log(
-            "Metadata:",
+            "Metadata error:",
             error.message
         );
+    }
+
+    finally {
+
+        checking = false;
     }
 }
 
 
-// --------------------------------------------------
-// API used by webpage
-// --------------------------------------------------
+// ======================================================
+// TEST PAGE
+// ======================================================
 
 app.get(
-    "/api/now-playing",
+    "/api/status",
     (req, res) => {
 
         res.json({
-            title: currentTitle,
-            stream: currentStream
+
+            online: true,
+
+            service:
+                "Slow Tide Now Playing",
+
+            stream:
+                currentStream,
+
+            title:
+                currentTitle
         });
     }
 );
 
 
-// --------------------------------------------------
-// API used by SECOND LIFE PRIM
-// --------------------------------------------------
+// ======================================================
+// NOW PLAYING API
+// Used by your Second Life media screen
+// ======================================================
+
+app.get(
+    "/api/now-playing",
+    (req, res) => {
+
+        res.set(
+            "Cache-Control",
+            "no-store"
+        );
+
+
+        res.json({
+
+            title:
+                currentTitle,
+
+            stream:
+                currentStream
+        });
+    }
+);
+
+
+// ======================================================
+// CHANGE RADIO API
+// Used by your Second Life radio controller
+// ======================================================
 
 app.post(
     "/api/set-stream",
-    (req, res) => {
+    async (req, res) => {
 
-        const stream =
+        let stream =
+            req.body &&
             req.body.stream;
 
 
@@ -286,75 +496,144 @@ app.post(
             return res
                 .status(400)
                 .json({
+
+                    success: false,
+
                     error:
                         "Missing stream URL"
                 });
         }
 
 
-        if (
-            !stream.startsWith("http://") &&
-            !stream.startsWith("https://")
-        ) {
+        stream =
+            stream.trim();
+
+
+        // Validate URL
+        try {
+
+            const parsed =
+                new URL(stream);
+
+
+            if (
+                parsed.protocol !== "http:" &&
+                parsed.protocol !== "https:"
+            ) {
+
+                throw new Error();
+            }
+
+        }
+
+        catch {
 
             return res
                 .status(400)
                 .json({
+
+                    success: false,
+
                     error:
-                        "Invalid stream URL"
+                        "Invalid radio stream URL"
                 });
         }
 
 
-        if (
-            stream !== currentStream
-        ) {
+        // ----------------------------------------------
+        // CHANGE ACTIVE STATION
+        // ----------------------------------------------
 
-            console.log(
-                "PARCEL RADIO CHANGED:"
-            );
-
-            console.log(stream);
+        const changed =
+            stream !== currentStream;
 
 
-            currentStream = stream;
+        currentStream =
+            stream;
+
+
+        if (changed) {
 
             currentTitle =
                 "Connecting to new station...";
 
 
-            // Check new station immediately
+            console.log(
+                "================================"
+            );
+
+            console.log(
+                "SLOW TIDE RADIO CHANGED"
+            );
+
+            console.log(
+                currentStream
+            );
+
+            console.log(
+                "================================"
+            );
+
+
+            // Start metadata lookup
+            // Don't make Second Life wait for it.
+
             updateNowPlaying();
         }
 
 
-        res.json({
+        // Immediately tell Second Life it worked.
+
+        return res.status(200).json({
+
             success: true,
-            stream: currentStream
+
+            message:
+                "Slow Tide radio updated",
+
+            stream:
+                currentStream
         });
     }
 );
 
 
-// --------------------------------------------------
-// Start server
-// --------------------------------------------------
+// ======================================================
+// START SERVER
+// ======================================================
 
 app.listen(
     PORT,
     () => {
 
         console.log(
-            "Slow Tide Now Playing running on port",
+            "================================"
+        );
+
+        console.log(
+            "Slow Tide Now Playing"
+        );
+
+        console.log(
+            "Server running on port",
             PORT
         );
 
+        console.log(
+            "Starting station:",
+            currentStream
+        );
 
-        // Check immediately
+        console.log(
+            "================================"
+        );
+
+
+        // Get current song immediately
         updateNowPlaying();
 
 
-        // Check song every 10 seconds
+        // Check every 10 seconds
         setInterval(
             updateNowPlaying,
             10000
