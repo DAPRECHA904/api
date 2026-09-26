@@ -37,6 +37,14 @@ let currentTitle =
 
 let checking = false;
 
+// ======================================================
+// MASTER SONG SYNC CLOCK
+// ======================================================
+
+// Shared server clock used by every Slow Tide Lyrics TV.
+// This resets whenever the server detects a new song.
+let songStartedAt = Date.now();
+
 
 // ======================================================
 // LYRICS CACHE
@@ -1532,6 +1540,16 @@ async function updateNowPlaying() {
             currentTitle =
                 cleaned;
 
+            // ==================================================
+            // RESET MASTER SONG CLOCK
+            // ==================================================
+
+            // Every Lyrics TV will use this same timestamp.
+            // This prevents a TV loaded in the middle of a song
+            // from starting the lyrics back at the beginning.
+            songStartedAt =
+                Date.now();
+
 
             // Clear lyrics cache
             lyricsCache = {
@@ -2606,6 +2624,17 @@ app.get(
             stream:
                 currentStream,
 
+            // Shared master clock for all Lyrics TVs
+            songStartedAt:
+                songStartedAt,
+
+            // Convenient current position in the song
+            songElapsedSeconds:
+                Math.max(
+                    0,
+                    (Date.now() - songStartedAt) / 1000
+                ),
+
             updated:
                 new Date()
                     .toISOString()
@@ -2749,6 +2778,12 @@ app.post(
             currentTitle =
                 "Connecting to new station...";
 
+            // Reset sync while the new station connects.
+            // It will reset again when the first real song
+            // from the new station is detected.
+            songStartedAt =
+                Date.now();
+
 
             lyricsCache = {
                 title: null,
@@ -2880,9 +2915,12 @@ app.listen(
         );
 
 
+        // Check radio metadata every 3 seconds.
+        // This detects song changes much faster and improves
+        // lyric synchronization.
         setInterval(
             updateNowPlaying,
-            10000
+            3000
         );
     }
 );
