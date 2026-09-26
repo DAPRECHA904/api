@@ -16,7 +16,7 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #02030b;
+    background: #01030b;
     font-family: Arial, Helvetica, sans-serif;
     color: white;
 }
@@ -27,9 +27,9 @@ body {
     justify-content: center;
 }
 
-/* =========================
+/* ========================================
    MAIN TV
-========================= */
+======================================== */
 
 .tv {
     position: relative;
@@ -38,135 +38,276 @@ body {
     overflow: hidden;
 
     background:
-        radial-gradient(circle at 20% 60%,
-            rgba(255, 0, 160, .18),
-            transparent 35%),
+        radial-gradient(circle at 15% 50%,
+            rgba(255,0,153,.17),
+            transparent 34%),
 
-        radial-gradient(circle at 80% 60%,
-            rgba(0, 210, 255, .18),
-            transparent 35%),
+        radial-gradient(circle at 85% 50%,
+            rgba(0,217,255,.17),
+            transparent 34%),
+
+        radial-gradient(circle at 50% 80%,
+            rgba(78,20,150,.22),
+            transparent 45%),
 
         linear-gradient(
             180deg,
-            #030514 0%,
-            #07122c 55%,
-            #02030b 100%
+            #02051a 0%,
+            #071331 48%,
+            #030614 100%
         );
 
-    border: 6px solid #ff1493;
+    border: 5px solid #ff1493;
 
     box-shadow:
-        inset 0 0 35px #ff1493,
-        inset 0 0 70px #00d9ff;
+        inset 0 0 35px rgba(255,20,147,.65),
+        inset 0 0 80px rgba(0,217,255,.28);
 }
 
-/* =========================
-   TOP NEON LINE
-========================= */
 
-.top-line {
+/* ========================================
+   STARS
+======================================== */
+
+.stars {
     position: absolute;
-    top: 0;
-    left: 10%;
-    width: 80%;
-    height: 4px;
+    inset: 0;
+    opacity: .65;
 
-    background: #00eaff;
+    background-image:
+        radial-gradient(circle, white 1px, transparent 1.5px),
+        radial-gradient(circle, #00eaff 1px, transparent 1.5px),
+        radial-gradient(circle, #ff4fb2 1px, transparent 1.5px);
 
-    box-shadow:
-        0 0 10px #00eaff,
-        0 0 25px #00eaff,
-        0 0 45px #00eaff;
+    background-size:
+        85px 85px,
+        130px 130px,
+        170px 170px;
 
-    animation: pulseBlue 2.2s infinite alternate;
+    background-position:
+        10px 20px,
+        40px 70px,
+        100px 25px;
+
+    animation: starsPulse 5s ease-in-out infinite alternate;
 }
 
-/* =========================
-   PALM TREES
-========================= */
 
-.palm {
-    position: absolute;
-    bottom: -3%;
-    font-size: clamp(130px, 22vw, 350px);
-    user-select: none;
-
-    filter:
-        drop-shadow(0 0 8px currentColor)
-        drop-shadow(0 0 18px currentColor)
-        drop-shadow(0 0 35px currentColor);
-
-    opacity: .82;
-}
-
-.palm-left {
-    left: -2%;
-    color: #ff1493;
-    transform: rotate(-8deg);
-
-    animation:
-        palmPink 2.4s ease-in-out infinite alternate;
-}
-
-.palm-right {
-    right: -2%;
-    color: #00d9ff;
-    transform: scaleX(-1) rotate(-8deg);
-
-    animation:
-        palmBlue 2.7s ease-in-out infinite alternate;
-}
-
-/* =========================
+/* ========================================
    MOON
-========================= */
+======================================== */
 
 .moon {
     position: absolute;
-    width: 15vw;
-    height: 15vw;
 
-    min-width: 100px;
-    min-height: 100px;
+    right: 13%;
+    top: 13%;
 
-    max-width: 230px;
-    max-height: 230px;
-
-    left: 50%;
-    top: 54%;
-
-    transform: translate(-50%, -50%);
+    width: clamp(80px, 9vw, 160px);
+    height: clamp(80px, 9vw, 160px);
 
     border-radius: 50%;
 
     background:
         radial-gradient(
-            circle at 40% 40%,
-            #ffffff,
-            #bdefff 38%,
-            #64dfff 68%,
-            rgba(0,217,255,.1) 72%
+            circle at 38% 35%,
+            #ffffff 0%,
+            #ffd9f2 35%,
+            #ff91d0 65%,
+            #ff4eae 100%
         );
 
-    opacity: .12;
-
     box-shadow:
-        0 0 35px #00d9ff,
-        0 0 80px rgba(0,217,255,.5);
+        0 0 18px #ffffff,
+        0 0 40px #ff63bd,
+        0 0 85px rgba(255,20,147,.75);
+
+    opacity: .78;
 
     animation:
         moonPulse 4s ease-in-out infinite alternate;
 }
 
-/* =========================
-   CENTER CONTENT
-========================= */
+
+/* ========================================
+   OCEAN
+======================================== */
+
+.ocean {
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    height: 26%;
+
+    background:
+        linear-gradient(
+            180deg,
+            rgba(0,40,100,.05),
+            rgba(0,130,190,.14),
+            rgba(255,0,145,.08)
+        );
+
+    border-top:
+        1px solid rgba(0,220,255,.25);
+
+    box-shadow:
+        0 -8px 35px rgba(0,217,255,.12);
+}
+
+.ocean::before,
+.ocean::after {
+    content: "";
+
+    position: absolute;
+
+    left: -10%;
+    width: 120%;
+
+    height: 2px;
+
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            #00d9ff,
+            transparent,
+            #ff1493,
+            transparent
+        );
+
+    opacity: .45;
+
+    animation:
+        waterMove 5s linear infinite;
+}
+
+.ocean::before {
+    top: 28%;
+}
+
+.ocean::after {
+    top: 62%;
+    animation-delay: -2.5s;
+}
+
+
+/* ========================================
+   NEON PALM CONTAINERS
+======================================== */
+
+.palm {
+    position: absolute;
+    z-index: 3;
+
+    bottom: -4%;
+
+    width: clamp(230px, 26vw, 500px);
+    height: clamp(420px, 75vh, 850px);
+
+    pointer-events: none;
+}
+
+.palm svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.palm-left {
+    left: -4%;
+
+    color: #ff1493;
+
+    animation:
+        palmPinkPulse 2.3s ease-in-out infinite alternate;
+}
+
+.palm-right {
+    right: -4%;
+
+    color: #00d9ff;
+
+    transform: scaleX(-1);
+
+    animation:
+        palmBluePulse 2.6s ease-in-out infinite alternate;
+}
+
+
+/* ========================================
+   PALM SVG LINES
+======================================== */
+
+.palm-line {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.trunk-main {
+    stroke-width: 9;
+}
+
+.trunk-detail {
+    stroke-width: 3;
+    opacity: .72;
+}
+
+.frond-main {
+    stroke-width: 6;
+}
+
+.frond-leaf {
+    stroke-width: 3;
+    opacity: .92;
+}
+
+
+/* ========================================
+   TOP NEON FRAME
+======================================== */
+
+.top-line {
+    position: absolute;
+
+    top: 0;
+    left: 10%;
+
+    width: 80%;
+    height: 4px;
+
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            #ff1493,
+            #00eaff,
+            #ff1493,
+            transparent
+        );
+
+    box-shadow:
+        0 0 12px #ff1493,
+        0 0 25px #00d9ff;
+
+    animation:
+        framePulse 2s ease-in-out infinite alternate;
+}
+
+
+/* ========================================
+   CONTENT
+======================================== */
 
 .content {
     position: relative;
     z-index: 10;
 
-    width: 72%;
+    width: 68%;
     height: 100%;
 
     margin: auto;
@@ -180,115 +321,161 @@ body {
     padding-top: 4vh;
 }
 
-/* =========================
+
+/* ========================================
    BRAND
-========================= */
+======================================== */
 
 .brand-small {
-    font-size: clamp(13px, 1.3vw, 25px);
-    letter-spacing: .45em;
+    font-size: clamp(11px, 1.15vw, 22px);
 
-    color: #9beeff;
+    letter-spacing: .48em;
+
+    color: #ffd9f0;
 
     text-shadow:
-        0 0 8px #00d9ff;
+        0 0 7px #ff1493,
+        0 0 15px rgba(255,20,147,.7);
 
     margin-bottom: .3vh;
 }
 
 .brand {
-    font-family: Georgia, "Times New Roman", serif;
+    font-family:
+        Georgia,
+        "Times New Roman",
+        serif;
 
-    font-size: clamp(38px, 5.2vw, 90px);
+    font-size:
+        clamp(40px, 5.5vw, 96px);
 
     font-style: italic;
     font-weight: bold;
 
-    letter-spacing: .05em;
+    letter-spacing: .03em;
 
-    color: white;
+    background:
+        linear-gradient(
+            90deg,
+            #ff4daf,
+            #ffffff,
+            #43ddff
+        );
 
-    text-shadow:
-        0 0 4px white,
-        0 0 12px #ff1493,
-        0 0 28px #ff1493,
-        0 0 45px #00d9ff;
+    -webkit-background-clip: text;
+    background-clip: text;
+
+    color: transparent;
+
+    filter:
+        drop-shadow(0 0 6px #ff1493)
+        drop-shadow(0 0 14px #00d9ff);
 }
 
 .subtitle {
-    margin-top: -.6vh;
+    margin-top: -.7vh;
 
-    font-size: clamp(13px, 1.5vw, 27px);
+    font-size:
+        clamp(12px, 1.35vw, 25px);
 
     letter-spacing: .65em;
 
-    color: #ff73c5;
+    color: #ff80ca;
 
     text-shadow:
-        0 0 10px #ff1493;
+        0 0 9px #ff1493;
 }
 
-/* =========================
+
+/* ========================================
    NOW PLAYING
-========================= */
+======================================== */
 
 .now-playing {
-    margin-top: 4vh;
+    margin-top: 3.5vh;
 
-    font-size: clamp(12px, 1.1vw, 21px);
+    padding:
+        .6vh
+        1.6vw;
 
-    letter-spacing: .4em;
+    font-size:
+        clamp(11px, 1vw, 19px);
 
-    color: #00eaff;
+    letter-spacing: .42em;
+
+    color: #7defff;
+
+    border-top:
+        1px solid rgba(0,217,255,.55);
+
+    border-bottom:
+        1px solid rgba(255,20,147,.55);
 
     text-shadow:
         0 0 8px #00d9ff;
 }
 
 .artist {
-    margin-top: 1vh;
+    margin-top: 1.5vh;
 
-    font-size: clamp(24px, 3vw, 50px);
+    font-size:
+        clamp(24px, 3vw, 52px);
 
     font-weight: 700;
 
-    color: white;
+    color: #ffffff;
 
     text-shadow:
-        0 0 12px rgba(255,255,255,.35);
+        0 0 8px rgba(255,255,255,.35),
+        0 0 18px rgba(0,217,255,.3);
 }
 
 .song {
     margin-top: .5vh;
 
-    font-size: clamp(18px, 2vw, 34px);
+    max-width: 90%;
 
-    color: #ff73c5;
+    font-size:
+        clamp(17px, 1.9vw, 34px);
+
+    color: #ff74c5;
 
     text-shadow:
         0 0 9px #ff1493;
 }
 
-/* =========================
-   LYRIC BOX
-========================= */
+
+/* ========================================
+   LYRICS AREA
+======================================== */
 
 .lyrics-box {
     position: relative;
 
-    margin-top: 5vh;
+    margin-top: 4vh;
 
-    width: 90%;
+    width: 94%;
+    min-height: 27vh;
 
-    min-height: 25vh;
+    padding:
+        4vh
+        3vw;
 
     display: flex;
     flex-direction: column;
 
-    align-items: center;
     justify-content: center;
+    align-items: center;
 
-    padding: 3vh 3vw;
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            rgba(2,3,14,.72) 15%,
+            rgba(3,6,22,.86) 50%,
+            rgba(2,3,14,.72) 85%,
+            transparent
+        );
 
     border-top:
         1px solid rgba(255,20,147,.45);
@@ -296,36 +483,37 @@ body {
     border-bottom:
         1px solid rgba(0,217,255,.45);
 
-    background:
-        linear-gradient(
-            90deg,
-            transparent,
-            rgba(0,0,0,.42),
-            transparent
-        );
+    box-shadow:
+        0 0 35px rgba(0,0,0,.55);
 }
 
 .lyric-label {
     position: absolute;
+
     top: -12px;
 
-    padding: 3px 15px;
+    padding:
+        3px
+        18px;
 
-    background: #02030b;
+    background: #030614;
 
-    color: #9beeff;
+    color: #9befff;
 
-    font-size: clamp(10px, .8vw, 15px);
+    font-size:
+        clamp(9px, .75vw, 14px);
 
-    letter-spacing: .3em;
+    letter-spacing: .35em;
+
+    text-shadow:
+        0 0 7px #00d9ff;
 }
 
-/* =========================
-   CURRENT LYRIC
-========================= */
-
 .current-lyric {
-    font-size: clamp(25px, 3.4vw, 58px);
+    max-width: 100%;
+
+    font-size:
+        clamp(24px, 3.1vw, 56px);
 
     line-height: 1.25;
 
@@ -335,111 +523,147 @@ body {
 
     text-shadow:
         0 0 5px white,
-        0 0 12px #ff1493,
+        0 0 13px #ff1493,
         0 0 28px #00d9ff;
 
     animation:
-        lyricGlow 1.8s ease-in-out infinite alternate;
+        lyricGlow 1.7s ease-in-out infinite alternate;
 }
-
-/* =========================
-   NEXT LYRIC
-========================= */
 
 .next-lyric {
     margin-top: 2vh;
 
-    font-size: clamp(16px, 1.8vw, 30px);
+    max-width: 90%;
 
-    color: rgba(255,255,255,.5);
+    font-size:
+        clamp(15px, 1.65vw, 29px);
+
+    line-height: 1.3;
+
+    color:
+        rgba(255,255,255,.48);
 
     font-style: italic;
 }
 
-/* =========================
+
+/* ========================================
    BOTTOM
-========================= */
+======================================== */
 
 .bottom {
     position: absolute;
 
+    z-index: 12;
+
     bottom: 2vh;
     left: 50%;
 
-    transform: translateX(-50%);
+    transform:
+        translateX(-50%);
 
-    font-size: clamp(9px, .8vw, 15px);
+    font-size:
+        clamp(8px, .75vw, 14px);
 
     letter-spacing: .3em;
 
-    color: rgba(255,255,255,.45);
+    color:
+        rgba(255,255,255,.48);
+
+    white-space: nowrap;
 }
 
-/* =========================
+
+/* ========================================
    ANIMATIONS
-========================= */
+======================================== */
 
-@keyframes palmPink {
-
-    0% {
-        opacity: .55;
-
-        filter:
-            drop-shadow(0 0 6px #ff1493)
-            drop-shadow(0 0 15px #ff1493);
-    }
-
-    100% {
-        opacity: 1;
-
-        filter:
-            drop-shadow(0 0 15px #ff1493)
-            drop-shadow(0 0 40px #ff1493)
-            drop-shadow(0 0 70px #ff1493);
-    }
-}
-
-@keyframes palmBlue {
-
-    0% {
-        opacity: .55;
-
-        filter:
-            drop-shadow(0 0 6px #00d9ff)
-            drop-shadow(0 0 15px #00d9ff);
-    }
-
-    100% {
-        opacity: 1;
-
-        filter:
-            drop-shadow(0 0 15px #00d9ff)
-            drop-shadow(0 0 40px #00d9ff)
-            drop-shadow(0 0 70px #00d9ff);
-    }
-}
-
-@keyframes pulseBlue {
+@keyframes palmPinkPulse {
 
     from {
-        opacity: .45;
+        opacity: .62;
+
+        filter:
+            drop-shadow(0 0 4px #ff1493)
+            drop-shadow(0 0 10px #ff1493);
     }
 
     to {
         opacity: 1;
+
+        filter:
+            drop-shadow(0 0 8px #ff1493)
+            drop-shadow(0 0 22px #ff1493)
+            drop-shadow(0 0 42px #ff1493);
     }
 }
+
+
+@keyframes palmBluePulse {
+
+    from {
+        opacity: .62;
+
+        filter:
+            drop-shadow(0 0 4px #00d9ff)
+            drop-shadow(0 0 10px #00d9ff);
+    }
+
+    to {
+        opacity: 1;
+
+        filter:
+            drop-shadow(0 0 8px #00d9ff)
+            drop-shadow(0 0 22px #00d9ff)
+            drop-shadow(0 0 42px #00d9ff);
+    }
+}
+
 
 @keyframes moonPulse {
 
     from {
-        opacity: .07;
+        opacity: .55;
+
+        box-shadow:
+            0 0 18px #fff,
+            0 0 35px #ff63bd;
     }
 
     to {
-        opacity: .18;
+        opacity: .88;
+
+        box-shadow:
+            0 0 22px #fff,
+            0 0 55px #ff63bd,
+            0 0 100px rgba(255,20,147,.75);
     }
 }
+
+
+@keyframes starsPulse {
+
+    from {
+        opacity: .35;
+    }
+
+    to {
+        opacity: .75;
+    }
+}
+
+
+@keyframes framePulse {
+
+    from {
+        opacity: .5;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
 
 @keyframes lyricGlow {
 
@@ -459,19 +683,546 @@ body {
     }
 }
 
+
+@keyframes waterMove {
+
+    from {
+        transform:
+            translateX(-3%);
+    }
+
+    to {
+        transform:
+            translateX(3%);
+    }
+}
+
 </style>
 </head>
+
 
 <body>
 
 <div class="tv">
 
-    <div class="top-line"></div>
-
-    <div class="palm palm-left">🌴</div>
-    <div class="palm palm-right">🌴</div>
+    <div class="stars"></div>
 
     <div class="moon"></div>
+
+    <div class="ocean"></div>
+
+    <div class="top-line"></div>
+
+
+    <!-- =================================
+         LEFT PINK NEON PALM
+    ================================== -->
+
+    <div class="palm palm-left">
+
+        <svg
+            viewBox="0 0 400 700"
+            xmlns="http://www.w3.org/2000/svg"
+        >
+
+            <!-- TRUNK -->
+
+            <path
+                class="palm-line trunk-main"
+                d="
+                M165 710
+                C170 625 178 555 190 485
+                C200 420 214 355 225 290
+                C232 250 235 220 233 190
+                "
+            />
+
+
+            <!-- TRUNK DETAILS -->
+
+            <path
+                class="palm-line trunk-detail"
+                d="M171 650 L205 638"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M175 610 L211 598"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M181 565 L216 554"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M187 520 L221 510"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M194 475 L226 465"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M201 430 L231 421"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M209 385 L236 377"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M216 340 L240 332"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M223 298 L242 290"
+            />
+
+
+            <!-- PALM CENTER -->
+
+            <circle
+                cx="233"
+                cy="188"
+                r="10"
+                fill="currentColor"
+            />
+
+
+            <!-- MAIN FRONDS -->
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 190
+                C190 145 140 120 72 118
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 188
+                C175 170 120 170 50 195
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 190
+                C180 205 125 235 85 285
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 188
+                C210 135 185 92 145 55
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 188
+                C228 130 235 78 260 35
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 188
+                C270 130 315 100 370 92
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 190
+                C285 168 335 170 392 200
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 190
+                C280 210 325 245 355 300
+                "
+            />
+
+
+            <!-- LEFT UPPER LEAVES -->
+
+            <path
+                class="palm-line frond-leaf"
+                d="
+                M205 163
+                L178 132
+                M190 151
+                L158 145
+                M173 140
+                L147 118
+                M153 132
+                L120 132
+                M132 125
+                L106 105
+                M108 121
+                L82 128
+                "
+            />
+
+
+            <!-- FAR LEFT LEAVES -->
+
+            <path
+                class="palm-line frond-leaf"
+                d="
+                M194 180
+                L160 166
+                M172 176
+                L143 186
+                M150 179
+                L116 168
+                M126 184
+                L96 199
+                M103 192
+                L73 187
+                "
+            />
+
+
+            <!-- LOWER LEFT LEAVES -->
+
+            <path
+                class="palm-line frond-leaf"
+                d="
+                M200 202
+                L165 206
+                M181 212
+                L151 230
+                M159 226
+                L128 229
+                M139 242
+                L116 266
+                M116 258
+                L92 260
+                "
+            />
+
+
+            <!-- TOP LEFT FROND LEAVES -->
+
+            <path
+                class="palm-line frond-leaf"
+                d="
+                M219 158
+                L204 127
+                M211 142
+                L185 123
+                M201 124
+                L194 95
+                M188 109
+                L166 91
+                M173 90
+                L168 66
+                "
+            />
+
+
+            <!-- TOP FROND LEAVES -->
+
+            <path
+                class="palm-line frond-leaf"
+                d="
+                M235 155
+                L221 127
+                M236 136
+                L249 108
+                M237 116
+                L224 91
+                M242 95
+                L258 70
+                M248 72
+                L241 50
+                "
+            />
+
+
+            <!-- RIGHT UPPER LEAVES -->
+
+            <path
+                class="palm-line frond-leaf"
+                d="
+                M258 160
+                L280 132
+                M275 147
+                L304 140
+                M291 131
+                L313 110
+                M314 119
+                L342 112
+                M335 105
+                L358 88
+                "
+            />
+
+
+            <!-- RIGHT SIDE LEAVES -->
+
+            <path
+                class="palm-line frond-leaf"
+                d="
+                M266 182
+                L296 168
+                M288 176
+                L317 185
+                M311 180
+                L340 169
+                M334 187
+                L363 199
+                M356 195
+                L381 191
+                "
+            />
+
+
+            <!-- LOWER RIGHT LEAVES -->
+
+            <path
+                class="palm-line frond-leaf"
+                d="
+                M262 203
+                L293 208
+                M282 216
+                L311 235
+                M304 230
+                L333 235
+                M326 248
+                L349 273
+                M346 267
+                L368 271
+                "
+            />
+
+        </svg>
+
+    </div>
+
+
+    <!-- =================================
+         RIGHT BLUE NEON PALM
+    ================================== -->
+
+    <div class="palm palm-right">
+
+        <svg
+            viewBox="0 0 400 700"
+            xmlns="http://www.w3.org/2000/svg"
+        >
+
+            <path
+                class="palm-line trunk-main"
+                d="
+                M165 710
+                C170 625 178 555 190 485
+                C200 420 214 355 225 290
+                C232 250 235 220 233 190
+                "
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M171 650 L205 638"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M175 610 L211 598"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M181 565 L216 554"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M187 520 L221 510"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M194 475 L226 465"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M201 430 L231 421"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M209 385 L236 377"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M216 340 L240 332"
+            />
+
+            <path
+                class="palm-line trunk-detail"
+                d="M223 298 L242 290"
+            />
+
+
+            <circle
+                cx="233"
+                cy="188"
+                r="10"
+                fill="currentColor"
+            />
+
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 190
+                C190 145 140 120 72 118
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 188
+                C175 170 120 170 50 195
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 190
+                C180 205 125 235 85 285
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 188
+                C210 135 185 92 145 55
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 188
+                C228 130 235 78 260 35
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 188
+                C270 130 315 100 370 92
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 190
+                C285 168 335 170 392 200
+                "
+            />
+
+            <path
+                class="palm-line frond-main"
+                d="
+                M233 190
+                C280 210 325 245 355 300
+                "
+            />
+
+
+            <path
+                class="palm-line frond-leaf"
+                d="
+                M205 163 L178 132
+                M190 151 L158 145
+                M173 140 L147 118
+                M153 132 L120 132
+                M132 125 L106 105
+                M108 121 L82 128
+
+                M194 180 L160 166
+                M172 176 L143 186
+                M150 179 L116 168
+                M126 184 L96 199
+                M103 192 L73 187
+
+                M200 202 L165 206
+                M181 212 L151 230
+                M159 226 L128 229
+                M139 242 L116 266
+                M116 258 L92 260
+
+                M219 158 L204 127
+                M211 142 L185 123
+                M201 124 L194 95
+                M188 109 L166 91
+                M173 90 L168 66
+
+                M235 155 L221 127
+                M236 136 L249 108
+                M237 116 L224 91
+                M242 95 L258 70
+                M248 72 L241 50
+
+                M258 160 L280 132
+                M275 147 L304 140
+                M291 131 L313 110
+                M314 119 L342 112
+                M335 105 L358 88
+
+                M266 182 L296 168
+                M288 176 L317 185
+                M311 180 L340 169
+                M334 187 L363 199
+                M356 195 L381 191
+
+                M262 203 L293 208
+                M282 216 L311 235
+                M304 230 L333 235
+                M326 248 L349 273
+                M346 267 L368 271
+                "
+            />
+
+        </svg>
+
+    </div>
+
+
+    <!-- =================================
+         MAIN CONTENT
+    ================================== -->
 
     <div class="content">
 
@@ -487,9 +1238,11 @@ body {
             R&amp;B ISLAND
         </div>
 
+
         <div class="now-playing">
             NOW PLAYING
         </div>
+
 
         <div
             class="artist"
@@ -498,6 +1251,7 @@ body {
             Connecting...
         </div>
 
+
         <div
             class="song"
             id="song"
@@ -505,11 +1259,13 @@ body {
             Slow Tide Radio
         </div>
 
+
         <div class="lyrics-box">
 
             <div class="lyric-label">
                 ♪ LYRICS ♪
             </div>
+
 
             <div
                 class="current-lyric"
@@ -517,6 +1273,7 @@ body {
             >
                 Finding the vibe...
             </div>
+
 
             <div
                 class="next-lyric"
@@ -529,6 +1286,7 @@ body {
 
     </div>
 
+
     <div class="bottom">
         SLOW TIDE • DA OBSIDIAN COURT
     </div>
@@ -539,7 +1297,7 @@ body {
 <script>
 
 /* ============================================
-   GET NOW PLAYING FROM YOUR EXISTING SERVER
+   SLOW TIDE NOW PLAYING CONNECTION
 ============================================ */
 
 let lastTitle = "";
@@ -618,18 +1376,20 @@ async function updateNowPlaying() {
 
 
         document
-            .getElementById("artist")
+            .getElementById(
+                "artist"
+            )
             .textContent =
             info.artist;
 
 
         document
-            .getElementById("song")
+            .getElementById(
+                "song"
+            )
             .textContent =
             info.song;
 
-
-        /* Song changed */
 
         if (
             data.title !==
@@ -646,7 +1406,10 @@ async function updateNowPlaying() {
                 )
                 .textContent =
                 "♪ " +
-                info.song;
+                (
+                    info.song ||
+                    "Slow Tide"
+                );
 
 
             document
@@ -662,25 +1425,25 @@ async function updateNowPlaying() {
     catch (error) {
 
         document
-            .getElementById("artist")
+            .getElementById(
+                "artist"
+            )
             .textContent =
             "Slow Tide";
 
 
         document
-            .getElementById("song")
+            .getElementById(
+                "song"
+            )
             .textContent =
             "Connecting to radio...";
     }
 }
 
 
-/* Initial load */
-
 updateNowPlaying();
 
-
-/* Check every 10 seconds */
 
 setInterval(
     updateNowPlaying,
