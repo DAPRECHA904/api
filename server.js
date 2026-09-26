@@ -1,81 +1,363 @@
-const http = require('node:http');
-const fs = require('node:fs');
-const path = require('node:path');
-const STREAM = 'http://mogullustradio.shoutcastnet.com:30800/stream';
-const ORIGIN = 'http://mogullustradio.shoutcastnet.com:30800';
-const PORT = Number(process.env.PORT || 3000);
-let state = { title: '', status: 'Connecting to radio station', updatedAt: null };
-let checking = false;
+const express = require("express");
+const http = require("http");
 
-async function fromStats() {
-  for (const endpoint of ['/stats?sid=1&json=1', '/stats?json=1', '/7.html']) {
-    try {
-      const response = await fetch(ORIGIN + endpoint, { signal: AbortSignal.timeout(4500), headers: { 'User-Agent': 'SlowTideNowPlaying/1.0' } });
-      if (!response.ok) continue;
-      const body = await response.text();
-      if (endpoint.endsWith('.html')) {
-        const match = body.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-        const fields = (match ? match[1] : body).replace(/<[^>]*>/g, '').split(',');
-        if (fields.length >= 7 && fields.slice(6).join(',').trim()) return fields.slice(6).join(',').trim();
-      } else {
-        const data = JSON.parse(body);
-        const item = Array.isArray(data) ? data[0] : (data.streams?.[0] || data);
-        const title = item.songtitle || item.songTitle || item.currentSong || item.title;
-        if (typeof title === 'string' && title.trim()) return title.trim();
-      }
-    } catch (_) { /* Try the next metadata method. */ }
-  }
-  return '';
-}
+const app = express();
+app.use(express.json());
+app.use(express.static(__dirname));
 
-function fromIcy() {
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (value = '') => { if (!settled) { settled = true; resolve(value); } };
-    const req = http.get(STREAM, { headers: { 'Icy-MetaData': '1', 'User-Agent': 'SlowTideNowPlaying/1.0' }, timeout: 6500 }, (res) => {
-      const interval = Number(res.headers['icy-metaint']);
-      if (!Number.isSafeInteger(interval) || interval <= 0 || interval > 2000000) { res.destroy(); finish(); return; }
-      let remaining = interval, metadataBytes = -1, pieces = [], received = 0;
-      res.on('data', (chunk) => {
-        let i = 0;
-        while (i < chunk.length) {
-          if (remaining > 0) { const n = Math.min(remaining, chunk.length - i); i += n; remaining -= n; continue; }
-          if (metadataBytes < 0) { metadataBytes = chunk[i++] * 16; if (metadataBytes === 0) { res.destroy(); finish(); return; } }
-          const n = Math.min(metadataBytes - received, chunk.length - i);
-          pieces.push(chunk.subarray(i, i + n)); received += n; i += n;
-          if (received === metadataBytes) {
-            const metadata = Buffer.concat(pieces).toString('utf8');
-            const match = metadata.match(/StreamTitle='([^']*)'/i);
-            res.destroy(); finish(match?.[1]?.trim() || ''); return;
-          }
+const PORT = process.env.PORT || 3000;
+
+// Default station when server starts
+let currentStream =
+  "http://mogullustradio.shoutcastnet.com:30800/stream";
+
+let currentTitle = "Connecting to Slow Tide...";
+
+
+// --------------------------------------------------
+// Read ICY / SHOUTCAST metadata
+// --------------------------------------------------
+
+function getStreamTitle(streamUrl) {
+
+    return new Promise((resolve, reject) => {
+
+        try {
+
+            const url = new URL(streamUrl);
+
+            const options = {
+                hostname: url.hostname,
+                port: url.port || 80,
+                path: url.pathname + url.search,
+                method: "GET",
+
+                headers: {
+                    "Icy-MetaData": "1",
+                    "User-Agent": "SlowTideNowPlaying/1.0"
+                }
+            };
+
+
+            const request = http.request(options, response => {
+
+                const metaInt =
+                    parseInt(response.headers["icy-metaint"]);
+
+                if (!metaInt) {
+
+                    response.destroy();
+
+                    reject(
+                        new Error(
+                            "Station does not provide ICY metadata."
+                        )
+                    );
+
+                    return;
+                }
+
+
+                let audioBytes = 0;
+                let metadataLength = null;
+                let metadata = Buffer.alloc(0);
+
+
+                response.on("data", chunk => {
+
+                    let offset = 0;
+
+
+                    while (offset < chunk.length) {
+
+                        // Skip audio until metadata point
+                        if (audioBytes < metaInt) {
+
+                            const remaining =
+                                metaInt - audioBytes;
+
+                            const amount =
+                                Math.min(
+                                    remaining,
+                                    chunk.length - offset
+                                );
+
+                            audioBytes += amount;
+                            offset += amount;
+
+                            continue;
+                        }
+
+
+                        // Read metadata length byte
+                        if (metadataLength === null) {
+
+                            metadataLength =
+                                chunk[offset] * 16;
+
+                            offset++;
+
+
+                            if (metadataLength === 0) {
+
+                                audioBytes = 0;
+                                metadataLength = null;
+
+                                continue;
+                            }
+                        }
+
+
+                        const needed =
+                            metadataLength -
+                            metadata.length;
+
+                        const amount =
+                            Math.min(
+                                needed,
+                                chunk.length - offset
+                            );
+
+
+                        metadata =
+                            Buffer.concat([
+                                metadata,
+                                chunk.subarray(
+                                    offset,
+                                    offset + amount
+                                )
+                            ]);
+
+
+                        offset += amount;
+
+
+                        // Complete metadata block
+                        if (
+                            metadata.length >=
+                            metadataLength
+                        ) {
+
+                            const text =
+                                metadata
+                                .toString("utf8")
+                                .replace(/\0/g, "");
+
+
+                            const match =
+                                text.match(
+                                    /StreamTitle='([^']*)'/
+                                );
+
+
+                            response.destroy();
+
+
+                            if (
+                                match &&
+                                match[1]
+                            ) {
+
+                                resolve(
+                                    match[1].trim()
+                                );
+
+                            } else {
+
+                                reject(
+                                    new Error(
+                                        "No StreamTitle found."
+                                    )
+                                );
+                            }
+
+                            return;
+                        }
+                    }
+                });
+
+
+                response.on("error", reject);
+
+            });
+
+
+            request.on("error", reject);
+
+            request.setTimeout(
+                10000,
+                () => {
+
+                    request.destroy();
+
+                    reject(
+                        new Error(
+                            "Radio connection timed out."
+                        )
+                    );
+                }
+            );
+
+
+            request.end();
+
         }
-      });
-      res.on('error', () => finish()); res.on('end', () => finish());
+
+        catch (error) {
+
+            reject(error);
+        }
     });
-    req.on('timeout', () => req.destroy()); req.on('error', () => finish());
-    setTimeout(() => { req.destroy(); finish(); }, 7500);
-  });
 }
 
-async function checkStation() {
-  if (checking) return;
-  checking = true;
-  try {
-    const title = (await fromStats()) || (await fromIcy());
-    if (title) state = { title, status: 'Live', updatedAt: new Date().toISOString() };
-    else state = { ...state, status: state.title ? 'Last known song — station unavailable' : 'Waiting for station metadata' };
-  } finally { checking = false; }
+
+// --------------------------------------------------
+// Poll current radio
+// --------------------------------------------------
+
+async function updateNowPlaying() {
+
+    try {
+
+        const title =
+            await getStreamTitle(
+                currentStream
+            );
+
+
+        if (
+            title &&
+            title !== currentTitle
+        ) {
+
+            currentTitle = title;
+
+            console.log(
+                "NOW PLAYING:",
+                currentTitle
+            );
+        }
+
+    }
+
+    catch (error) {
+
+        console.log(
+            "Metadata:",
+            error.message
+        );
+    }
 }
 
-const html = fs.readFileSync(path.join(__dirname, 'index.html'));
-http.createServer((req, res) => {
-  const url = new URL(req.url, 'http://localhost');
-  if (url.pathname === '/api/now-playing') {
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify(state));
-  } else if (url.pathname === '/' || url.pathname === '/index.html') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(html);
-  } else { res.writeHead(404); res.end('Not found'); }
-}).listen(PORT, '0.0.0.0', () => console.log(`Slow Tide display running on port ${PORT}`));
-checkStation();
-setInterval(checkStation, 15000);
+
+// --------------------------------------------------
+// API used by webpage
+// --------------------------------------------------
+
+app.get(
+    "/api/now-playing",
+    (req, res) => {
+
+        res.json({
+            title: currentTitle,
+            stream: currentStream
+        });
+    }
+);
+
+
+// --------------------------------------------------
+// API used by SECOND LIFE PRIM
+// --------------------------------------------------
+
+app.post(
+    "/api/set-stream",
+    (req, res) => {
+
+        const stream =
+            req.body.stream;
+
+
+        if (
+            !stream ||
+            typeof stream !== "string"
+        ) {
+
+            return res
+                .status(400)
+                .json({
+                    error:
+                        "Missing stream URL"
+                });
+        }
+
+
+        if (
+            !stream.startsWith("http://") &&
+            !stream.startsWith("https://")
+        ) {
+
+            return res
+                .status(400)
+                .json({
+                    error:
+                        "Invalid stream URL"
+                });
+        }
+
+
+        if (
+            stream !== currentStream
+        ) {
+
+            console.log(
+                "PARCEL RADIO CHANGED:"
+            );
+
+            console.log(stream);
+
+
+            currentStream = stream;
+
+            currentTitle =
+                "Connecting to new station...";
+
+
+            // Check new station immediately
+            updateNowPlaying();
+        }
+
+
+        res.json({
+            success: true,
+            stream: currentStream
+        });
+    }
+);
+
+
+// --------------------------------------------------
+// Start server
+// --------------------------------------------------
+
+app.listen(
+    PORT,
+    () => {
+
+        console.log(
+            "Slow Tide Now Playing running on port",
+            PORT
+        );
+
+
+        // Check immediately
+        updateNowPlaying();
+
+
+        // Check song every 10 seconds
+        setInterval(
+            updateNowPlaying,
+            10000
+        );
+    }
+);
