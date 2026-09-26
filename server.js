@@ -46,6 +46,20 @@ let checking = false;
 
 
 // ======================================================
+// LYRICS CACHE
+// ======================================================
+
+let lyricsCache = {
+
+    title: null,
+
+    result: null,
+
+    updated: 0
+};
+
+
+// ======================================================
 // CLEAN TEXT / HTML
 // ======================================================
 
@@ -161,8 +175,9 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
             method: "GET",
 
             headers: {
+
                 "User-Agent":
-                    "Mozilla/5.0 SlowTideNowPlaying",
+                    "SlowTideLyricsTV/1.0",
 
                 "Accept":
                     "text/html,application/json,text/plain,*/*",
@@ -243,7 +258,7 @@ function fetchText(urlString, timeout = 8000, redirects = 0) {
                     totalLength += chunk.length;
 
 
-                    if (totalLength > 1000000) {
+                    if (totalLength > 2000000) {
                         response.destroy();
                     }
                 });
@@ -1401,6 +1416,11 @@ async function updateNowPlaying() {
                 currentTitle =
                     cleaned;
 
+                // Clear lyrics cache when song changes
+                lyricsCache.title = null;
+                lyricsCache.result = null;
+                lyricsCache.updated = 0;
+
 
                 console.log(
                     "NOW PLAYING:",
@@ -1432,6 +1452,579 @@ async function updateNowPlaying() {
     finally {
 
         checking = false;
+    }
+}
+
+
+// ======================================================
+// SPLIT ARTIST + SONG
+// ======================================================
+
+function splitArtistAndSong(fullTitle) {
+
+    if (!fullTitle) {
+
+        return {
+            artist: null,
+            song: null
+        };
+    }
+
+
+    const separator =
+        fullTitle.indexOf(" - ");
+
+
+    if (separator === -1) {
+
+        return {
+            artist: null,
+            song: fullTitle.trim()
+        };
+    }
+
+
+    return {
+
+        artist:
+            fullTitle
+                .substring(
+                    0,
+                    separator
+                )
+                .trim(),
+
+        song:
+            fullTitle
+                .substring(
+                    separator + 3
+                )
+                .trim()
+    };
+}
+
+
+// ======================================================
+// CLEAN SONG NAME FOR LYRICS SEARCH
+// ======================================================
+
+function cleanSongForLyrics(value) {
+
+    if (!value)
+        return null;
+
+
+    let song =
+        String(value);
+
+
+    // Remove common radio additions that can hurt matching
+    song = song
+        .replace(
+            /\s*\[(?:official|audio|video|lyrics).*?\]\s*/gi,
+            " "
+        )
+        .replace(
+            /\s*\((?:official|audio|video|lyrics).*?\)\s*/gi,
+            " "
+        )
+        .replace(
+            /\s+/g,
+            " "
+        )
+        .trim();
+
+
+    return song || null;
+}
+
+
+// ======================================================
+// LRCLIB SEARCH
+// ======================================================
+
+async function searchLRCLIB(
+    artist,
+    song
+) {
+
+    if (!song)
+        return null;
+
+
+    const cleanArtist =
+        artist
+            ? artist.trim()
+            : "";
+
+    const cleanSong =
+        cleanSongForLyrics(song);
+
+
+    let query =
+        cleanSong;
+
+
+    if (cleanArtist) {
+
+        query =
+            cleanArtist +
+            " " +
+            cleanSong;
+    }
+
+
+    const searchURL =
+        "https://lrclib.net/api/search?q=" +
+        encodeURIComponent(query);
+
+
+    console.log(
+        "LRCLIB SEARCH:",
+        query
+    );
+
+
+    const text =
+        await fetchText(
+            searchURL,
+            10000
+        );
+
+
+    let results;
+
+
+    try {
+
+        results =
+            JSON.parse(text);
+    }
+
+    catch (error) {
+
+        throw new Error(
+            "LRCLIB returned invalid JSON"
+        );
+    }
+
+
+    if (
+        !Array.isArray(results) ||
+        results.length === 0
+    ) {
+
+        console.log(
+            "LRCLIB: No results"
+        );
+
+        return null;
+    }
+
+
+    // --------------------------------------------------
+    // Find the best result.
+    // Prefer exact artist/title matches.
+    // Then prefer synchronized lyrics.
+    // --------------------------------------------------
+
+    const normalize =
+        value => String(value || "")
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}]+/gu, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+
+    const wantedArtist =
+        normalize(cleanArtist);
+
+    const wantedSong =
+        normalize(cleanSong);
+
+
+    let best = null;
+    let bestScore = -1;
+
+
+    for (const item of results) {
+
+        if (!item)
+            continue;
+
+
+        let score = 0;
+
+
+        const resultArtist =
+            normalize(
+                item.artistName
+            );
+
+        const resultSong =
+            normalize(
+                item.trackName
+            );
+
+
+        if (
+            wantedSong &&
+            resultSong === wantedSong
+        ) {
+
+            score += 100;
+        }
+
+        else if (
+            wantedSong &&
+            (
+                resultSong.includes(
+                    wantedSong
+                ) ||
+                wantedSong.includes(
+                    resultSong
+                )
+            )
+        ) {
+
+            score += 50;
+        }
+
+
+        if (
+            wantedArtist &&
+            resultArtist === wantedArtist
+        ) {
+
+            score += 100;
+        }
+
+        else if (
+            wantedArtist &&
+            (
+                resultArtist.includes(
+                    wantedArtist
+                ) ||
+                wantedArtist.includes(
+                    resultArtist
+                )
+            )
+        ) {
+
+            score += 40;
+        }
+
+
+        if (
+            item.syncedLyrics &&
+            item.syncedLyrics.trim()
+        ) {
+
+            score += 25;
+        }
+
+
+        if (
+            item.plainLyrics &&
+            item.plainLyrics.trim()
+        ) {
+
+            score += 10;
+        }
+
+
+        if (
+            item.instrumental === true
+        ) {
+
+            score -= 100;
+        }
+
+
+        if (score > bestScore) {
+
+            bestScore = score;
+            best = item;
+        }
+    }
+
+
+    if (!best)
+        return null;
+
+
+    console.log(
+        "LRCLIB MATCH:",
+        best.artistName,
+        "-",
+        best.trackName
+    );
+
+
+    return best;
+}
+
+
+// ======================================================
+// GET LYRICS FOR CURRENT SONG
+// ======================================================
+
+async function getCurrentLyrics() {
+
+    const title =
+        currentTitle;
+
+
+    if (
+        !title ||
+        title ===
+            "Connecting to Slow Tide..." ||
+        title ===
+            "Connecting to new station..." ||
+        title ===
+            "Waiting for song information..."
+    ) {
+
+        return {
+
+            success: false,
+
+            status:
+                "waiting",
+
+            title:
+                title,
+
+            message:
+                "Waiting for song information."
+        };
+    }
+
+
+    // Use cache if same song
+    if (
+        lyricsCache.title === title &&
+        lyricsCache.result
+    ) {
+
+        return lyricsCache.result;
+    }
+
+
+    const info =
+        splitArtistAndSong(
+            title
+        );
+
+
+    if (!info.song) {
+
+        return {
+
+            success: false,
+
+            status:
+                "unavailable",
+
+            artist:
+                info.artist,
+
+            song:
+                info.song,
+
+            message:
+                "Unable to determine song title."
+        };
+    }
+
+
+    try {
+
+        const match =
+            await searchLRCLIB(
+                info.artist,
+                info.song
+            );
+
+
+        if (!match) {
+
+            const unavailable = {
+
+                success: false,
+
+                status:
+                    "unavailable",
+
+                artist:
+                    info.artist,
+
+                song:
+                    info.song,
+
+                title:
+                    title,
+
+                message:
+                    "Lyrics unavailable for this track.",
+
+                source:
+                    "LRCLIB"
+            };
+
+
+            lyricsCache = {
+
+                title:
+                    title,
+
+                result:
+                    unavailable,
+
+                updated:
+                    Date.now()
+            };
+
+
+            return unavailable;
+        }
+
+
+        const hasSynced =
+            Boolean(
+                match.syncedLyrics &&
+                match.syncedLyrics.trim()
+            );
+
+
+        const hasPlain =
+            Boolean(
+                match.plainLyrics &&
+                match.plainLyrics.trim()
+            );
+
+
+        const result = {
+
+            success:
+                hasSynced ||
+                hasPlain,
+
+            status:
+                hasSynced
+                    ? "synced"
+                    : (
+                        hasPlain
+                            ? "plain"
+                            : "unavailable"
+                    ),
+
+            artist:
+                info.artist,
+
+            song:
+                info.song,
+
+            title:
+                title,
+
+            matchedArtist:
+                match.artistName ||
+                null,
+
+            matchedSong:
+                match.trackName ||
+                null,
+
+            album:
+                match.albumName ||
+                null,
+
+            duration:
+                match.duration ||
+                null,
+
+            instrumental:
+                Boolean(
+                    match.instrumental
+                ),
+
+            syncedLyrics:
+                hasSynced
+                    ? match.syncedLyrics
+                    : null,
+
+            plainLyrics:
+                hasPlain
+                    ? match.plainLyrics
+                    : null,
+
+            source:
+                "LRCLIB",
+
+            updated:
+                new Date().toISOString()
+        };
+
+
+        if (
+            !hasSynced &&
+            !hasPlain
+        ) {
+
+            result.message =
+                match.instrumental
+                    ? "Instrumental track."
+                    : "Lyrics unavailable for this track.";
+        }
+
+
+        lyricsCache = {
+
+            title:
+                title,
+
+            result:
+                result,
+
+            updated:
+                Date.now()
+        };
+
+
+        return result;
+    }
+
+    catch (error) {
+
+        console.log(
+            "LRCLIB ERROR:",
+            error.message
+        );
+
+
+        return {
+
+            success: false,
+
+            status:
+                "error",
+
+            artist:
+                info.artist,
+
+            song:
+                info.song,
+
+            title:
+                title,
+
+            message:
+                "Lyrics service temporarily unavailable.",
+
+            source:
+                "LRCLIB"
+        };
     }
 }
 
@@ -1492,6 +2085,54 @@ app.get(
             updated:
                 new Date().toISOString()
         });
+    }
+);
+
+
+// ======================================================
+// LYRICS API
+// ======================================================
+
+app.get(
+    "/api/lyrics",
+    async (req, res) => {
+
+        res.set(
+            "Cache-Control",
+            "no-store, no-cache, must-revalidate"
+        );
+
+
+        try {
+
+            const lyrics =
+                await getCurrentLyrics();
+
+
+            res.json(
+                lyrics
+            );
+        }
+
+        catch (error) {
+
+            console.log(
+                "Lyrics API error:",
+                error.message
+            );
+
+
+            res.status(500).json({
+
+                success: false,
+
+                status:
+                    "error",
+
+                message:
+                    "Unable to retrieve lyrics."
+            });
+        }
     }
 );
 
@@ -1576,6 +2217,12 @@ app.post(
 
             currentTitle =
                 "Connecting to new station...";
+
+
+            // Clear old lyrics
+            lyricsCache.title = null;
+            lyricsCache.result = null;
+            lyricsCache.updated = 0;
 
 
             console.log(
@@ -1676,6 +2323,10 @@ app.listen(
 
         console.log(
             "Lyrics TV: /lyrics"
+        );
+
+        console.log(
+            "Lyrics API: /api/lyrics"
         );
 
         console.log(
