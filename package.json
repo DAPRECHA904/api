@@ -1,7 +1,7 @@
 {
   "name": "slow-tide-now-playing",
   "version": "1.0.0",
-  "description": "Slow Tide R&B Island Now Playing Display",
+  "description": "Slow Tide R&B Island Live Now Playing Display",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
