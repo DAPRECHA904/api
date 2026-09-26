@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Slow Tide — Now Playing</title>
+<style>
+*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#05050c;color:white;font-family:Arial,Helvetica,sans-serif}.display{width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:3% 5%;background:linear-gradient(90deg,#16081d 0%,#05050c 28%,#05050c 72%,#071526 100%)}#song{font-size:clamp(22px,5.8vw,88px);font-weight:800;line-height:1.12;overflow-wrap:anywhere;text-shadow:0 0 13px #f000a0,0 0 25px #008aff;max-width:100%}.small{font-size:clamp(18px,3.4vw,45px)}
+</style></head><body><main class="display"><div id="song" role="status" aria-live="polite">Connecting to Slow Tide…</div></main>
+<script>
+const song=document.getElementById('song');
+async function refresh(){try{const response=await fetch('/api/now-playing',{cache:'no-store'});if(!response.ok)throw Error('offline');const data=await response.json();const title=data.title||data.status||'Waiting for song information';if(song.textContent!==title)song.textContent=title;song.classList.toggle('small',title.length>55);}catch(_){if(!song.textContent||song.textContent==='Connecting to Slow Tide…')song.textContent='Waiting for radio connection';}}
+refresh();setInterval(refresh,10000);
+</script></body></html>
