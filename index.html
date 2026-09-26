@@ -9,47 +9,64 @@ html, body {
     padding: 0;
     width: 100%;
     height: 100%;
-
-    /* TRANSPARENT */
-    background: transparent !important;
+    background: #000000;
     overflow: hidden;
 }
 
 body {
     display: flex;
     align-items: center;
-    justify-content: center;
 }
 
+/* Visible screen area */
+.marquee {
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+/* Moving song title */
 #song {
-    width: 96%;
-    text-align: center;
+    display: inline-block;
+    padding-left: 100%;
 
     font-family: Arial, Helvetica, sans-serif;
-    font-weight: 800;
+    font-weight: 900;
+    font-size: clamp(42px, 7vw, 100px);
 
-    font-size: clamp(34px, 6vw, 82px);
-
-    color: white;
+    color: #ffffff;
 
     text-shadow:
-        0 0 5px #ffffff,
+        0 0 4px #ffffff,
         0 0 10px #ff36d1,
         0 0 18px #ff36d1,
-        0 0 25px #27cfff;
+        0 0 28px #27cfff;
 
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    animation: scrollSong 14s linear infinite;
+}
+
+/* Right → Left scrolling */
+@keyframes scrollSong {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-100%);
+    }
 }
 </style>
 </head>
 
 <body>
 
-<div id="song">Loading...</div>
+<div class="marquee">
+    <div id="song">Loading...</div>
+</div>
 
 <script>
+
+let lastSong = "";
 
 async function updateSong() {
 
@@ -60,18 +77,29 @@ async function updateSong() {
 
         const data = await response.json();
 
-        if (data.title) {
-            document.getElementById("song").textContent = data.title;
+        if (data.title && data.title !== lastSong) {
+
+            lastSong = data.title;
+
+            const song = document.getElementById("song");
+
+            song.textContent = data.title;
+
+            /* Restart scrolling when song changes */
+            song.style.animation = "none";
+            song.offsetHeight;
+            song.style.animation = "scrollSong 14s linear infinite";
         }
 
     } catch (error) {
-        console.log("Waiting for song information...");
+        console.log("Waiting for song...");
     }
 }
 
+/* Get song immediately */
 updateSong();
 
-/* Check every 10 seconds */
+/* Check station every 10 seconds */
 setInterval(updateSong, 10000);
 
 </script>
