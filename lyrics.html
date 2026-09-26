@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Slow Tide Lyrics TV</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #02030b;
+    font-family: Arial, Helvetica, sans-serif;
+    color: white;
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* =========================
+   MAIN TV
+========================= */
+
+.tv {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+
+    background:
+        radial-gradient(circle at 20% 60%,
+            rgba(255, 0, 160, .18),
+            transparent 35%),
+
+        radial-gradient(circle at 80% 60%,
+            rgba(0, 210, 255, .18),
+            transparent 35%),
+
+        linear-gradient(
+            180deg,
+            #030514 0%,
+            #07122c 55%,
+            #02030b 100%
+        );
+
+    border: 6px solid #ff1493;
+
+    box-shadow:
+        inset 0 0 35px #ff1493,
+        inset 0 0 70px #00d9ff;
+}
+
+/* =========================
+   TOP NEON LINE
+========================= */
+
+.top-line {
+    position: absolute;
+    top: 0;
+    left: 10%;
+    width: 80%;
+    height: 4px;
+
+    background: #00eaff;
+
+    box-shadow:
+        0 0 10px #00eaff,
+        0 0 25px #00eaff,
+        0 0 45px #00eaff;
+
+    animation: pulseBlue 2.2s infinite alternate;
+}
+
+/* =========================
+   PALM TREES
+========================= */
+
+.palm {
+    position: absolute;
+    bottom: -3%;
+    font-size: clamp(130px, 22vw, 350px);
+    user-select: none;
+
+    filter:
+        drop-shadow(0 0 8px currentColor)
+        drop-shadow(0 0 18px currentColor)
+        drop-shadow(0 0 35px currentColor);
+
+    opacity: .82;
+}
+
+.palm-left {
+    left: -2%;
+    color: #ff1493;
+    transform: rotate(-8deg);
+
+    animation:
+        palmPink 2.4s ease-in-out infinite alternate;
+}
+
+.palm-right {
+    right: -2%;
+    color: #00d9ff;
+    transform: scaleX(-1) rotate(-8deg);
+
+    animation:
+        palmBlue 2.7s ease-in-out infinite alternate;
+}
+
+/* =========================
+   MOON
+========================= */
+
+.moon {
+    position: absolute;
+    width: 15vw;
+    height: 15vw;
+
+    min-width: 100px;
+    min-height: 100px;
+
+    max-width: 230px;
+    max-height: 230px;
+
+    left: 50%;
+    top: 54%;
+
+    transform: translate(-50%, -50%);
+
+    border-radius: 50%;
+
+    background:
+        radial-gradient(
+            circle at 40% 40%,
+            #ffffff,
+            #bdefff 38%,
+            #64dfff 68%,
+            rgba(0,217,255,.1) 72%
+        );
+
+    opacity: .12;
+
+    box-shadow:
+        0 0 35px #00d9ff,
+        0 0 80px rgba(0,217,255,.5);
+
+    animation:
+        moonPulse 4s ease-in-out infinite alternate;
+}
+
+/* =========================
+   CENTER CONTENT
+========================= */
+
+.content {
+    position: relative;
+    z-index: 10;
+
+    width: 72%;
+    height: 100%;
+
+    margin: auto;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    text-align: center;
+
+    padding-top: 4vh;
+}
+
+/* =========================
+   BRAND
+========================= */
+
+.brand-small {
+    font-size: clamp(13px, 1.3vw, 25px);
+    letter-spacing: .45em;
+
+    color: #9beeff;
+
+    text-shadow:
+        0 0 8px #00d9ff;
+
+    margin-bottom: .3vh;
+}
+
+.brand {
+    font-family: Georgia, "Times New Roman", serif;
+
+    font-size: clamp(38px, 5.2vw, 90px);
+
+    font-style: italic;
+    font-weight: bold;
+
+    letter-spacing: .05em;
+
+    color: white;
+
+    text-shadow:
+        0 0 4px white,
+        0 0 12px #ff1493,
+        0 0 28px #ff1493,
+        0 0 45px #00d9ff;
+}
+
+.subtitle {
+    margin-top: -.6vh;
+
+    font-size: clamp(13px, 1.5vw, 27px);
+
+    letter-spacing: .65em;
+
+    color: #ff73c5;
+
+    text-shadow:
+        0 0 10px #ff1493;
+}
+
+/* =========================
+   NOW PLAYING
+========================= */
+
+.now-playing {
+    margin-top: 4vh;
+
+    font-size: clamp(12px, 1.1vw, 21px);
+
+    letter-spacing: .4em;
+
+    color: #00eaff;
+
+    text-shadow:
+        0 0 8px #00d9ff;
+}
+
+.artist {
+    margin-top: 1vh;
+
+    font-size: clamp(24px, 3vw, 50px);
+
+    font-weight: 700;
+
+    color: white;
+
+    text-shadow:
+        0 0 12px rgba(255,255,255,.35);
+}
+
+.song {
+    margin-top: .5vh;
+
+    font-size: clamp(18px, 2vw, 34px);
+
+    color: #ff73c5;
+
+    text-shadow:
+        0 0 9px #ff1493;
+}
+
+/* =========================
+   LYRIC BOX
+========================= */
+
+.lyrics-box {
+    position: relative;
+
+    margin-top: 5vh;
+
+    width: 90%;
+
+    min-height: 25vh;
+
+    display: flex;
+    flex-direction: column;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 3vh 3vw;
+
+    border-top:
+        1px solid rgba(255,20,147,.45);
+
+    border-bottom:
+        1px solid rgba(0,217,255,.45);
+
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            rgba(0,0,0,.42),
+            transparent
+        );
+}
+
+.lyric-label {
+    position: absolute;
+    top: -12px;
+
+    padding: 3px 15px;
+
+    background: #02030b;
+
+    color: #9beeff;
+
+    font-size: clamp(10px, .8vw, 15px);
+
+    letter-spacing: .3em;
+}
+
+/* =========================
+   CURRENT LYRIC
+========================= */
+
+.current-lyric {
+    font-size: clamp(25px, 3.4vw, 58px);
+
+    line-height: 1.25;
+
+    font-weight: 700;
+
+    color: white;
+
+    text-shadow:
+        0 0 5px white,
+        0 0 12px #ff1493,
+        0 0 28px #00d9ff;
+
+    animation:
+        lyricGlow 1.8s ease-in-out infinite alternate;
+}
+
+/* =========================
+   NEXT LYRIC
+========================= */
+
+.next-lyric {
+    margin-top: 2vh;
+
+    font-size: clamp(16px, 1.8vw, 30px);
+
+    color: rgba(255,255,255,.5);
+
+    font-style: italic;
+}
+
+/* =========================
+   BOTTOM
+========================= */
+
+.bottom {
+    position: absolute;
+
+    bottom: 2vh;
+    left: 50%;
+
+    transform: translateX(-50%);
+
+    font-size: clamp(9px, .8vw, 15px);
+
+    letter-spacing: .3em;
+
+    color: rgba(255,255,255,.45);
+}
+
+/* =========================
+   ANIMATIONS
+========================= */
+
+@keyframes palmPink {
+
+    0% {
+        opacity: .55;
+
+        filter:
+            drop-shadow(0 0 6px #ff1493)
+            drop-shadow(0 0 15px #ff1493);
+    }
+
+    100% {
+        opacity: 1;
+
+        filter:
+            drop-shadow(0 0 15px #ff1493)
+            drop-shadow(0 0 40px #ff1493)
+            drop-shadow(0 0 70px #ff1493);
+    }
+}
+
+@keyframes palmBlue {
+
+    0% {
+        opacity: .55;
+
+        filter:
+            drop-shadow(0 0 6px #00d9ff)
+            drop-shadow(0 0 15px #00d9ff);
+    }
+
+    100% {
+        opacity: 1;
+
+        filter:
+            drop-shadow(0 0 15px #00d9ff)
+            drop-shadow(0 0 40px #00d9ff)
+            drop-shadow(0 0 70px #00d9ff);
+    }
+}
+
+@keyframes pulseBlue {
+
+    from {
+        opacity: .45;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes moonPulse {
+
+    from {
+        opacity: .07;
+    }
+
+    to {
+        opacity: .18;
+    }
+}
+
+@keyframes lyricGlow {
+
+    from {
+        text-shadow:
+            0 0 5px white,
+            0 0 10px #ff1493,
+            0 0 18px #ff1493;
+    }
+
+    to {
+        text-shadow:
+            0 0 6px white,
+            0 0 15px #00d9ff,
+            0 0 32px #00d9ff,
+            0 0 48px #ff1493;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="tv">
+
+    <div class="top-line"></div>
+
+    <div class="palm palm-left">🌴</div>
+    <div class="palm palm-right">🌴</div>
+
+    <div class="moon"></div>
+
+    <div class="content">
+
+        <div class="brand-small">
+            DA OBSIDIAN COURT PRESENTS
+        </div>
+
+        <div class="brand">
+            Slow Tide
+        </div>
+
+        <div class="subtitle">
+            R&amp;B ISLAND
+        </div>
+
+        <div class="now-playing">
+            NOW PLAYING
+        </div>
+
+        <div
+            class="artist"
+            id="artist"
+        >
+            Connecting...
+        </div>
+
+        <div
+            class="song"
+            id="song"
+        >
+            Slow Tide Radio
+        </div>
+
+        <div class="lyrics-box">
+
+            <div class="lyric-label">
+                ♪ LYRICS ♪
+            </div>
+
+            <div
+                class="current-lyric"
+                id="currentLyric"
+            >
+                Finding the vibe...
+            </div>
+
+            <div
+                class="next-lyric"
+                id="nextLyric"
+            >
+                Slow Tide R&amp;B Island
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="bottom">
+        SLOW TIDE • DA OBSIDIAN COURT
+    </div>
+
+</div>
+
+
+<script>
+
+/* ============================================
+   GET NOW PLAYING FROM YOUR EXISTING SERVER
+============================================ */
+
+let lastTitle = "";
+
+
+function splitSong(fullTitle) {
+
+    if (!fullTitle) {
+
+        return {
+            artist: "Slow Tide",
+            song: "R&B Island"
+        };
+    }
+
+
+    const separator =
+        fullTitle.indexOf(" - ");
+
+
+    if (separator === -1) {
+
+        return {
+            artist: fullTitle,
+            song: ""
+        };
+    }
+
+
+    return {
+
+        artist:
+            fullTitle
+            .substring(
+                0,
+                separator
+            )
+            .trim(),
+
+        song:
+            fullTitle
+            .substring(
+                separator + 3
+            )
+            .trim()
+    };
+}
+
+
+async function updateNowPlaying() {
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/now-playing?t=" +
+                Date.now(),
+                {
+                    cache: "no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!data.title)
+            return;
+
+
+        const info =
+            splitSong(
+                data.title
+            );
+
+
+        document
+            .getElementById("artist")
+            .textContent =
+            info.artist;
+
+
+        document
+            .getElementById("song")
+            .textContent =
+            info.song;
+
+
+        /* Song changed */
+
+        if (
+            data.title !==
+            lastTitle
+        ) {
+
+            lastTitle =
+                data.title;
+
+
+            document
+                .getElementById(
+                    "currentLyric"
+                )
+                .textContent =
+                "♪ " +
+                info.song;
+
+
+            document
+                .getElementById(
+                    "nextLyric"
+                )
+                .textContent =
+                "Lyrics loading...";
+        }
+
+    }
+
+    catch (error) {
+
+        document
+            .getElementById("artist")
+            .textContent =
+            "Slow Tide";
+
+
+        document
+            .getElementById("song")
+            .textContent =
+            "Connecting to radio...";
+    }
+}
+
+
+/* Initial load */
+
+updateNowPlaying();
+
+
+/* Check every 10 seconds */
+
+setInterval(
+    updateNowPlaying,
+    10000
+);
+
+</script>
+
+</body>
+</html>
