@@ -19,6 +19,15 @@ app.get("/clouds.html", (req, res) => {
     res.sendFile(path.join(__dirname, "clouds.html"));
 });
 
+// Individual physical cloud display — use ?slot=1 through ?slot=6
+app.get("/cloud", (req, res) => {
+    res.sendFile(path.join(__dirname, "cloud.html"));
+});
+
+app.get("/cloud.html", (req, res) => {
+    res.sendFile(path.join(__dirname, "cloud.html"));
+});
+
 
 
     // ======================================================
