@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Slow Tide — Messages in the Clouds</title>
+<title>Slow Tide — Cloud Message</title>
 <style>
 *{box-sizing:border-box}
 html,body{
@@ -12,275 +12,185 @@ html,body{
 }
 #stage{
   position:fixed;inset:0;
-  width:100vw;height:100vh;
+  display:flex;align-items:center;justify-content:center;
   background:transparent;
-  overflow:hidden;
   pointer-events:none;
 }
-
-/*
-  UV-SPECIFIC LAYOUT
-  Top ~37% is intentionally unused because the supplied UV map
-  places the front cloud islands in the lower portion.
-  Six fixed zones: 3 on left cloud, 3 on right cloud.
-*/
-.messageCloud{
-  position:absolute;
-  width:37%;
-  height:17%;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  text-align:center;
+#cloud{
+  position:relative;
+  width:96vw;
+  height:88vh;
   opacity:0;
-  transform:scale(.90);
-  transition:opacity 1.6s ease,transform 1.8s ease,filter 1.6s ease;
+  transform:scale(.72);
+  filter:blur(24px);
+  transition:opacity 2s ease,transform 2.6s ease,filter 2.2s ease;
+}
+#cloud.show{opacity:1;transform:scale(1);filter:blur(0)}
+#cloud.leave{opacity:0;transform:scale(1.12);filter:blur(28px)}
+
+.puff{
+  position:absolute;border-radius:50%;
+  background:radial-gradient(circle at 45% 35%,
+    #fff 0%,#8deaff 12%,#329cff 30%,#762fce 52%,
+    #ff2dca 68%,rgba(25,10,80,.3) 78%,transparent 82%);
+  filter:blur(5px)
+    drop-shadow(0 0 20px rgba(70,225,255,.9))
+    drop-shadow(0 0 32px rgba(255,45,202,.8));
+  mix-blend-mode:screen;
+  animation:breathe 5s ease-in-out infinite alternate;
+}
+.p1{width:34%;height:48%;left:0;top:29%}
+.p2{width:39%;height:58%;left:14%;top:12%;animation-delay:-1s}
+.p3{width:40%;height:66%;left:30%;top:0;animation-delay:-2s}
+.p4{width:39%;height:58%;right:14%;top:12%;animation-delay:-3s}
+.p5{width:34%;height:48%;right:0;top:29%;animation-delay:-4s}
+.p6{width:47%;height:40%;left:8%;bottom:3%;animation-delay:-2.5s}
+.p7{width:47%;height:40%;right:8%;bottom:3%;animation-delay:-3.5s}
+
+.inner{
+  position:absolute;inset:14% 5%;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(20,5,65,.92),
+    rgba(55,13,115,.62) 48%,transparent 73%);
   filter:blur(10px);
-  color:white;
 }
-.messageCloud.show{
-  opacity:1;
-  transform:scale(1);
-  filter:blur(0);
+.content{
+  position:absolute;z-index:5;inset:9% 5%;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  text-align:center;color:#fff;
 }
-.messageCloud.leave{
-  opacity:0;
-  transform:scale(1.06);
-  filter:blur(14px);
-}
-
-/* LEFT physical cloud */
-.slot0{left:19%; top:30%; width:58%; height:34%}
-.slot1{left:7%; top:65%}
-.slot2{left:7%; top:82%}
-
-/* RIGHT physical cloud */
-.slot3{right:7%; top:48%}
-.slot4{right:7%; top:65%}
-.slot5{right:7%; top:82%}
-
 .for{
-  font:900 clamp(10px,1.15vw,24px) Georgia,serif;
-  letter-spacing:.12em;
-  line-height:1;
-  text-shadow:
-    0 0 4px #fff,
-    0 0 10px #fff,
-    0 0 19px #ff4bd1,
-    0 0 30px #42dcff;
+  font:900 clamp(30px,4vw,80px) Georgia,serif;
+  letter-spacing:.1em;
+  text-shadow:0 0 6px #fff,0 0 17px #fff,
+    0 0 32px #ff45cb,0 0 48px #35dfff;
 }
 .to{
-  max-width:100%;
-  font:900 clamp(23px,3.1vw,63px) Georgia,serif;
-  line-height:.88;
-  text-transform:uppercase;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:clip;
-  -webkit-text-stroke:1px rgba(255,100,215,.85);
-  text-shadow:
-    0 0 5px #fff,
-    0 0 12px #fff,
-    0 0 24px #ff42ca,
-    0 0 39px #ff1bbb,
-    0 0 52px #35dfff;
-  animation:namePulse 2.1s ease-in-out infinite alternate;
+  max-width:94%;
+  font:900 clamp(88px,14vw,270px) Georgia,serif;
+  line-height:.88;text-transform:uppercase;
+  -webkit-text-stroke:2px rgba(255,80,205,.8);
+  text-shadow:0 0 8px #fff,0 0 20px #fff,
+    0 0 42px #ff1dbb,0 0 70px #40dfff;
+  animation:pulse 2.4s ease-in-out infinite alternate;
+  overflow-wrap:anywhere;
 }
 .message{
-  max-width:100%;
-  margin:.45vh auto .25vh;
-  font:700 clamp(15px,1.9vw,39px)/1 "Brush Script MT","Segoe Script",cursive;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  text-shadow:
-    0 0 4px #fff,
-    0 0 10px #fff,
-    0 0 20px #ff70dc,
-    0 0 34px #ff25bd;
+  max-width:90%;
+  margin:2vh auto 1.4vh;
+  font:700 clamp(42px,6vw,118px)/1.04 "Brush Script MT","Segoe Script",cursive;
+  text-shadow:0 0 6px #fff,0 0 15px #fff,
+    0 0 31px #ff35c4,0 0 52px #ff1fae;
 }
 .from{
-  max-width:100%;
-  font:800 clamp(9px,1vw,21px) Georgia,serif;
-  line-height:1;
-  text-transform:uppercase;
-  letter-spacing:.05em;
-  white-space:nowrap;
-  overflow:hidden;
-  color:#effcff;
-  text-shadow:
-    0 0 4px #fff,
-    0 0 10px #fff,
-    0 0 20px #38ddff,
-    0 0 31px #168cff;
+  max-width:92%;
+  font:800 clamp(26px,3.5vw,68px) Georgia,serif;
+  text-transform:uppercase;letter-spacing:.07em;color:#eafbff;
+  text-shadow:0 0 6px #fff,0 0 17px #fff,
+    0 0 33px #36dfff,0 0 48px #168cff;
 }
 .heart{
-  color:#ff60d2;
-  display:inline-block;
-  text-shadow:0 0 5px #fff,0 0 15px #ff35c3;
-  animation:heartBeat 1.4s ease-in-out infinite;
+  color:#ff55cb;
+  text-shadow:0 0 7px #fff,0 0 20px #ff35c3;
+  display:inline-block;animation:beat 1.5s infinite;
 }
+.decor{position:absolute;inset:0;z-index:4}
+.fh{
+  position:absolute;color:#ff79da;
+  font-size:clamp(32px,5vw,90px);
+  text-shadow:0 0 8px #fff,0 0 21px #ff41cb,0 0 32px #44dfff;
+  animation:float 4s ease-in-out infinite;
+}
+.h1{left:8%;top:47%}
+.h2{left:22%;top:31%;animation-delay:-1s}
+.h3{right:22%;top:31%;animation-delay:-2s}
+.h4{right:8%;top:47%;animation-delay:-.6s}
 
-/* faint localized neon aura; stays inside each designated UV zone */
-.aura{
-  position:absolute;
-  z-index:-1;
-  width:108%;height:125%;
-  border-radius:50%;
-  background:
-    radial-gradient(ellipse at center,
-      rgba(95,45,190,.18) 0%,
-      rgba(45,200,255,.11) 38%,
-      rgba(255,45,195,.10) 62%,
-      transparent 76%);
-  filter:blur(11px);
-  animation:auraPulse 3.2s ease-in-out infinite alternate;
+@keyframes breathe{
+  from{transform:translate(-5px,4px) scale(.98)}
+  to{transform:translate(7px,-6px) scale(1.05)}
 }
-
-
-/* SLOT 1 IN-WORLD CALIBRATION TEST */
-.slot0 .for{
-  font-size:clamp(18px,2.2vw,46px);
+@keyframes pulse{
+  to{filter:brightness(1.28);transform:scale(1.018)}
 }
-.slot0 .to{
-  font-size:clamp(55px,7.2vw,145px);
-  white-space:normal;
-  overflow:visible;
-}
-.slot0 .message{
-  font-size:clamp(31px,4.1vw,82px);
-  white-space:normal;
-  overflow:visible;
-  text-overflow:clip;
-}
-.slot0 .from{
-  font-size:clamp(18px,2vw,40px);
-  overflow:visible;
-}
-
-@keyframes namePulse{
-  from{filter:brightness(.92);transform:scale(.985)}
-  to{filter:brightness(1.35);transform:scale(1.018)}
-}
-@keyframes heartBeat{
-  50%{transform:scale(1.28)}
-}
-@keyframes auraPulse{
-  from{opacity:.55;transform:scale(.97)}
-  to{opacity:1;transform:scale(1.04)}
-}
+@keyframes beat{50%{transform:scale(1.25)}}
+@keyframes float{50%{transform:translateY(-12px) scale(1.08)}}
 </style>
 </head>
 <body>
-<div id="stage"></div>
+<div id="stage">
+  <div id="cloud">
+    <div class="puff p1"></div><div class="puff p2"></div>
+    <div class="puff p3"></div><div class="puff p4"></div>
+    <div class="puff p5"></div><div class="puff p6"></div>
+    <div class="puff p7"></div><div class="inner"></div>
+
+    <div class="decor">
+      <span class="fh h1">♥</span><span class="fh h2">♡</span>
+      <span class="fh h3">♡</span><span class="fh h4">♥</span>
+    </div>
+
+    <div class="content">
+      <div class="for">FOR</div>
+      <div id="to" class="to"></div>
+      <div id="msg" class="message"></div>
+      <div id="from" class="from"></div>
+    </div>
+  </div>
+</div>
 
 <script>
 const API="/api/cloud-message";
 const POLL_MS=2000;
-const stage=document.getElementById("stage");
 
-const nodes=new Map();
-const slotOwners=new Array(6).fill(null);
+const params=new URLSearchParams(window.location.search);
+let SLOT=parseInt(params.get("slot")||"1",10);
+if(!Number.isFinite(SLOT) || SLOT<1 || SLOT>6) SLOT=1;
+
+/*
+  slot=1 means the oldest active server message,
+  slot=2 the second-oldest, etc.
+*/
+const cloud=document.getElementById("cloud");
+const to=document.getElementById("to");
+const msg=document.getElementById("msg");
+const from=document.getElementById("from");
+
+let shownId=null;
+let hideTimer=null;
 
 function clean(v,f=""){
   return String(v??f).replace(/\s+/g," ").trim();
 }
 
-function fitRecipient(el,value){
-  const len=value.length;
-  if(len>24) el.style.fontSize="clamp(17px,2.0vw,40px)";
-  else if(len>16) el.style.fontSize="clamp(19px,2.4vw,49px)";
-  else if(len>10) el.style.fontSize="clamp(21px,2.7vw,55px)";
+function hide(){
+  if(shownId===null)return;
+  cloud.classList.remove("show");
+  cloud.classList.add("leave");
+  setTimeout(()=>{
+    cloud.classList.remove("leave");
+  },2600);
+  shownId=null;
 }
 
-function makeCloud(data,slot){
-  const box=document.createElement("div");
-  box.className="messageCloud slot"+slot;
-  box.dataset.id=String(data.id);
+function showMessage(d){
+  const id=String(d.id);
+  if(id===shownId)return;
 
-  const aura=document.createElement("div");
-  aura.className="aura";
+  shownId=id;
+  to.textContent=clean(d.to,"SOMEONE SPECIAL").toUpperCase();
+  msg.textContent=clean(d.message,"Thinking of you.");
 
-  const forEl=document.createElement("div");
-  forEl.className="for";
-  forEl.textContent="FOR";
+  from.innerHTML="";
+  from.appendChild(document.createTextNode("— "+clean(d.from,"Anonymous")+" "));
+  const h=document.createElement("span");
+  h.className="heart";
+  h.textContent="♥";
+  from.appendChild(h);
 
-  const to=document.createElement("div");
-  to.className="to";
-  const recipient=clean(data.to,"SOMEONE SPECIAL").toUpperCase();
-  to.textContent=recipient;
-  fitRecipient(to,recipient);
-
-  const msg=document.createElement("div");
-  msg.className="message";
-  msg.textContent=clean(data.message,"Thinking of you.");
-
-  const from=document.createElement("div");
-  from.className="from";
-  from.appendChild(document.createTextNode("— "+clean(data.from,"Anonymous")+" "));
-  const heart=document.createElement("span");
-  heart.className="heart";
-  heart.textContent="♥";
-  from.appendChild(heart);
-
-  box.append(aura,forEl,to,msg,from);
-  stage.appendChild(box);
-
+  cloud.classList.remove("show","leave");
   requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>box.classList.add("show"));
-  });
-
-  return box;
-}
-
-function releaseSlot(id){
-  const sid=String(id);
-  for(let i=0;i<slotOwners.length;i++){
-    if(slotOwners[i]===sid){
-      slotOwners[i]=null;
-      return;
-    }
-  }
-}
-
-function firstFreeSlot(){
-  for(let i=0;i<slotOwners.length;i++){
-    if(slotOwners[i]===null)return i;
-  }
-  return -1;
-}
-
-function removeCloud(id,node){
-  releaseSlot(id);
-  nodes.delete(String(id));
-  if(!node)return;
-  node.classList.remove("show");
-  node.classList.add("leave");
-  setTimeout(()=>node.remove(),1900);
-}
-
-function render(messages){
-  const wanted=messages.slice(0,6);
-  const activeIds=new Set(wanted.map(m=>String(m.id)));
-
-  /* Existing messages remain in their exact assigned UV zone. */
-  for(const [id,node] of Array.from(nodes.entries())){
-    if(!activeIds.has(id)){
-      removeCloud(id,node);
-    }
-  }
-
-  /* New messages take the first free fixed zone only. */
-  wanted.forEach(m=>{
-    const id=String(m.id);
-    if(nodes.has(id))return;
-
-    const slot=firstFreeSlot();
-    if(slot<0)return;
-
-    slotOwners[slot]=id;
-    nodes.set(id,makeCloud(m,slot));
+    requestAnimationFrame(()=>cloud.classList.add("show"));
   });
 }
 
@@ -290,19 +200,16 @@ async function poll(){
     if(!r.ok)return;
 
     const d=await r.json();
+    const messages=Array.isArray(d.messages) ? d.messages : [];
 
-    if(Array.isArray(d.messages)){
-      render(d.messages);
+    const selected=messages[SLOT-1];
+
+    if(!selected){
+      if(shownId!==null) hide();
       return;
     }
 
-    /* Backward compatibility during deployment */
-    if(d.success && d.status==="active" && d.id!=null){
-      render([d]);
-      return;
-    }
-
-    render([]);
+    showMessage(selected);
   }catch(e){}
 }
 
