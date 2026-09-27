@@ -18,11 +18,11 @@ html,body{
 }
 .cloud{
   position:absolute;
-  width:44vw;
-  min-width:430px;
-  max-width:900px;
-  height:36vh;
-  min-height:300px;
+  width:31vw;
+  min-width:0;
+  max-width:none;
+  height:43vh;
+  min-height:0;
   opacity:0;
   transform:scale(.68);
   filter:blur(20px);
@@ -110,16 +110,15 @@ html,body{
   to{margin-top:8px}
 }
 
-/* Six deliberately separated sky positions */
-.slot0{left:2%;top:2%}
-.slot1{right:2%;top:3%}
-.slot2{left:5%;top:34%}
-.slot3{right:5%;top:35%}
-.slot4{left:18%;bottom:-1%}
-.slot5{right:18%;bottom:-1%}
+/* Six FIXED designated cloud zones.
+   Messages stay in their assigned zone until they expire. */
+.slot0{left:1.5%;top:4%}
+.slot1{left:28%;top:4%}
+.slot2{right:1.5%;top:4%}
+.slot3{left:1.5%;bottom:4%}
+.slot4{left:28%;bottom:4%}
+.slot5{right:1.5%;bottom:4%}
 
-/* As more clouds arrive, slightly reduce size to preserve readability */
-body.many .cloud{width:40vw;height:33vh;min-height:275px}
 </style>
 </head>
 <body>
@@ -199,31 +198,56 @@ function removeCloud(id,node){
   setTimeout(()=>node.remove(),2600);
 }
 
-function reposition(messages){
-  messages.forEach((m,i)=>{
-    const node=nodes.get(String(m.id));
-    if(!node)return;
-    for(let n=0;n<6;n++) node.classList.remove("slot"+n);
-    node.classList.add("slot"+Math.min(i,5));
-  });
-  document.body.classList.toggle("many",messages.length>=5);
+/* Fixed slot ownership:
+   an existing message never changes slots.
+   a new message takes the first free slot. */
+const slotOwners = new Array(6).fill(null);
+
+function releaseSlot(id){
+  const sid=String(id);
+  for(let i=0;i<slotOwners.length;i++){
+    if(slotOwners[i]===sid){
+      slotOwners[i]=null;
+      return;
+    }
+  }
+}
+
+function firstFreeSlot(){
+  for(let i=0;i<slotOwners.length;i++){
+    if(slotOwners[i]===null)return i;
+  }
+  return -1;
+}
+
+function removeFixedCloud(id,node){
+  releaseSlot(id);
+  removeCloud(id,node);
 }
 
 function render(messages){
-  const activeIds=new Set(messages.map(m=>String(m.id)));
+  const wanted=messages.slice(0,6);
+  const activeIds=new Set(wanted.map(m=>String(m.id)));
 
-  for(const [id,node] of nodes){
-    if(!activeIds.has(id)) removeCloud(id,node);
+  /* Remove only messages that actually disappeared/expired.
+     Do not reposition any surviving cloud. */
+  for(const [id,node] of Array.from(nodes.entries())){
+    if(!activeIds.has(id)){
+      removeFixedCloud(id,node);
+    }
   }
 
-  messages.slice(0,6).forEach((m,i)=>{
+  /* Add new messages into the first genuinely empty designated zone. */
+  wanted.forEach(m=>{
     const id=String(m.id);
-    if(!nodes.has(id)){
-      nodes.set(id,makeCloud(m,i));
-    }
-  });
+    if(nodes.has(id))return;
 
-  reposition(messages.slice(0,6));
+    let slot=firstFreeSlot();
+    if(slot<0)return;
+
+    slotOwners[slot]=id;
+    nodes.set(id,makeCloud(m,slot));
+  });
 }
 
 async function poll(){
