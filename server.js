@@ -136,7 +136,7 @@ function getOfficialVideoOverride(artist, song) {
     // CLOUD MESSAGE STATE + API — MULTI CLOUD VERSION
     // ======================================================
 
-    const CLOUD_MESSAGE_LIFETIME_MS = 10 * 60 * 1000;
+    const CLOUD_MESSAGE_LIFETIME_MS = 20 * 60 * 1000;
     const CLOUD_SUBMIT_COOLDOWN_MS = 15000;
     const CLOUD_MAX_ACTIVE = 6;
     const CLOUD_TO_MAX = 40;
@@ -182,6 +182,20 @@ function getOfficialVideoOverride(artist, song) {
         if (cloudMessages.length > CLOUD_MAX_ACTIVE) {
             cloudMessages = cloudMessages.slice(-CLOUD_MAX_ACTIVE);
         }
+    }
+
+    function getNextFreeCloudSlot() {
+        const usedSlots = new Set(
+            cloudMessages
+                .map(item => Number(item.slot))
+                .filter(slot => slot >= 1 && slot <= CLOUD_MAX_ACTIVE)
+        );
+
+        for (let slot = 1; slot <= CLOUD_MAX_ACTIVE; slot++) {
+            if (!usedSlots.has(slot)) return slot;
+        }
+
+        return null;
     }
 
     app.get("/api/cloud-message", (req, res) => {
@@ -250,8 +264,21 @@ function getOfficialVideoOverride(artist, song) {
         cloudLastSubmitByKey.set(clientKey, now);
         cleanupCloudMessages();
 
+        const slot = getNextFreeCloudSlot();
+
+        if (slot === null) {
+            return res.status(409).json({
+                success: false,
+                status: "full",
+                error: "All cloud message slots are currently in use.",
+                activeCount: cloudMessages.length,
+                maxActive: CLOUD_MAX_ACTIVE
+            });
+        }
+
         const newCloudMessage = {
             id: nextCloudMessageId++,
+            slot: slot,
             to: to,
             from: from || "Anonymous",
             message: message,
@@ -259,10 +286,6 @@ function getOfficialVideoOverride(artist, song) {
         };
 
         cloudMessages.push(newCloudMessage);
-
-        while (cloudMessages.length > CLOUD_MAX_ACTIVE) {
-            cloudMessages.shift();
-        }
 
         console.log(
             "CLOUD MESSAGE:",
