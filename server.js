@@ -124,6 +124,12 @@ function getOfficialVideoOverride(artist, song) {
         updated: 0
     };
 
+    // YouTube search protection. If Google returns HTTP 429, pause new
+    // API searches so the TVs cannot repeatedly hammer the daily quota.
+    // Official video overrides still work because they are checked first.
+    let youtubeSearchBackoffUntil = 0;
+    const YOUTUBE_429_BACKOFF_MS = 6 * 60 * 60 * 1000;
+
 
 
     // ======================================================
@@ -1787,12 +1793,6 @@ function getOfficialVideoOverride(artist, song) {
                     updated: 0
                 };
 
-                videoCache = {
-                    title: null,
-                    result: null,
-                    updated: 0
-                };
-
 
                 console.log(
                     "NOW PLAYING:",
@@ -2877,6 +2877,13 @@ function getOfficialVideoOverride(artist, song) {
     };
   }
 
+        if (Date.now() < youtubeSearchBackoffUntil) {
+            const retryMinutes = Math.max(1, Math.ceil((youtubeSearchBackoffUntil - Date.now()) / 60000));
+            const error = new Error(`YouTube search temporarily paused after quota/rate limit. Retry in about ${retryMinutes} minute(s).`);
+            error.code = "YOUTUBE_BACKOFF";
+            throw error;
+        }
+
         if (!YOUTUBE_API_KEY) {
             throw new Error("YOUTUBE_API_KEY is not configured");
         }
@@ -3036,14 +3043,44 @@ function getOfficialVideoOverride(artist, song) {
         } catch (error) {
             console.log("YOUTUBE VIDEO ERROR:", error.message);
 
-            return {
+            const is429 = /HTTP\s*429/i.test(String(error.message || ""));
+
+            if (is429) {
+                youtubeSearchBackoffUntil = Date.now() + YOUTUBE_429_BACKOFF_MS;
+                console.log(
+                    "YOUTUBE SEARCH BACKOFF ENABLED UNTIL:",
+                    new Date(youtubeSearchBackoffUntil).toISOString()
+                );
+            }
+
+            // IMPORTANT: cache failures for this song too. video.html polls
+            // /api/video frequently; without this cache every poll would make
+            // another YouTube search request and burn quota.
+            const errorResult = {
                 success: false,
-                status: "error",
+                status: is429 ? "quota_wait" : "error",
                 title: title,
                 artist: info.artist,
                 song: info.song,
-                message: error.message,
-                source: "YouTube"
+                message: is429
+                    ? "YouTube search quota is temporarily unavailable. Slow Tide will wait before searching again."
+                    : error.message,
+                source: "YouTube",
+                retryAfterSeconds: is429
+                    ? Math.ceil(YOUTUBE_429_BACKOFF_MS / 1000)
+                    : null
+            };
+
+            videoCache = {
+                title: title,
+                result: errorResult,
+                updated: Date.now()
+            };
+
+            return {
+                ...errorResult,
+                songStartedAt: songStartedAt,
+                songElapsedSeconds: elapsed()
             };
         }
     }
