@@ -1,287 +1,36 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Slow Tide — Messages in the Clouds</title>
 <style>
-:root{
-  --pink:#ff73d0;
-  --blue:#8be9ff;
-  --white:#fff;
-}
-*{box-sizing:border-box}
-html,body{
-  margin:0;width:100%;height:100%;overflow:hidden;
-  background:transparent !important;
-}
-body{
-  font-family:"Trebuchet MS",Arial,sans-serif;
-  color:white;
-}
-#stage{
-  position:fixed;inset:0;
-  display:flex;align-items:center;justify-content:center;
-  pointer-events:none;
-  background:transparent;
-}
-.cloud-message{
-  position:relative;
-  width:min(92vw,1500px);
-  min-height:60vh;
-  display:flex;flex-direction:column;
-  justify-content:center;align-items:center;
-  text-align:center;
-  opacity:0;
-  transform:scale(.86) translateY(28px);
-  filter:blur(14px);
-  transition:opacity 2.4s ease,transform 2.8s cubic-bezier(.2,.75,.25,1),filter 2.5s ease;
-}
-.cloud-message.visible{
-  opacity:1;transform:scale(1) translateY(0);filter:blur(0);
-}
-.cloud-message.leaving{
-  opacity:0;transform:scale(1.08) translateY(-15px);filter:blur(20px);
-}
-.cloud-bank{
-  position:absolute;
-  left:50%;top:50%;
-  width:85%;height:70%;
-  transform:translate(-50%,-50%);
-  opacity:0;
-  filter:blur(18px);
-  transition:opacity 2s ease;
-}
-.visible .cloud-bank{opacity:.78}
-.puff{
-  position:absolute;border-radius:50%;
-  background:radial-gradient(ellipse at 45% 40%,
-    rgba(255,255,255,.78) 0%,
-    rgba(199,239,255,.52) 28%,
-    rgba(255,153,225,.30) 52%,
-    rgba(126,208,255,.13) 70%,
-    transparent 76%);
-  filter:blur(9px);
-  mix-blend-mode:screen;
-  animation:floatPuff 8s ease-in-out infinite alternate;
-}
-.p1{width:42%;height:48%;left:1%;top:25%}
-.p2{width:46%;height:58%;left:24%;top:5%;animation-delay:-2s}
-.p3{width:44%;height:52%;right:2%;top:22%;animation-delay:-4s}
-.p4{width:48%;height:42%;left:20%;bottom:0;animation-delay:-6s}
-.p5{width:40%;height:38%;right:14%;bottom:3%;animation-delay:-3s}
-@keyframes floatPuff{
-  from{transform:translate(-12px,7px) scale(.96)}
-  to{transform:translate(14px,-9px) scale(1.06)}
-}
-.mist{
-  position:absolute;inset:15% -3%;
-  opacity:.6;
-  background:
-    radial-gradient(ellipse at 20% 50%,rgba(115,224,255,.35),transparent 35%),
-    radial-gradient(ellipse at 80% 45%,rgba(255,105,211,.35),transparent 36%),
-    radial-gradient(ellipse at 50% 60%,rgba(255,255,255,.25),transparent 45%);
-  filter:blur(30px);
-  animation:mistMove 7s ease-in-out infinite alternate;
-}
-@keyframes mistMove{
-  from{transform:translateX(-2%) scale(.97)}
-  to{transform:translateX(2%) scale(1.04)}
-}
-.copy{position:relative;z-index:4;width:92%;padding:4vh 2vw}
-.kicker{
-  font-size:clamp(18px,2vw,38px);
-  font-weight:700;letter-spacing:.25em;text-transform:uppercase;
-  color:#f7fdff;
-  text-shadow:0 0 6px #fff,0 0 15px var(--blue),0 0 28px var(--pink);
-  margin-bottom:2.2vh;
-  animation:cloudGlow 3.2s ease-in-out infinite alternate;
-}
-.recipient{
-  font-size:clamp(44px,7vw,120px);
-  line-height:1;font-weight:900;text-transform:uppercase;
-  letter-spacing:.055em;
-  color:rgba(255,255,255,.98);
-  -webkit-text-stroke:1px rgba(255,255,255,.35);
-  text-shadow:
-    0 0 4px #fff,0 0 11px #fff,
-    0 0 24px var(--blue),0 0 45px var(--pink),
-    0 0 75px rgba(255,115,208,.65);
-  animation:cloudGlow 2.6s ease-in-out infinite alternate,cloudFloat 5s ease-in-out infinite;
-}
-.message{
-  max-width:1250px;margin:2.8vh auto 1.8vh;
-  font-family:Georgia,"Times New Roman",serif;
-  font-style:italic;font-weight:700;
-  font-size:clamp(30px,4.6vw,78px);line-height:1.15;
-  color:#fff;
-  text-shadow:
-    0 0 5px #fff,0 0 14px rgba(255,255,255,.95),
-    0 0 28px var(--blue),0 0 48px rgba(255,115,208,.85);
-  animation:cloudGlow 3s ease-in-out infinite alternate;
-}
-.sender{
-  font-size:clamp(20px,2.5vw,43px);
-  font-weight:800;letter-spacing:.13em;text-transform:uppercase;
-  color:#eafcff;
-  text-shadow:0 0 8px #fff,0 0 18px var(--blue),0 0 32px var(--pink);
-}
-.heart{
-  display:inline-block;margin-left:.3em;color:#ff9bdd;
-  animation:heart 1.6s ease-in-out infinite;
-}
-@keyframes cloudGlow{
-  from{filter:brightness(.92);opacity:.9}
-  to{filter:brightness(1.22);opacity:1}
-}
-@keyframes cloudFloat{
-  0%,100%{transform:translateY(0)}
-  50%{transform:translateY(-8px)}
-}
-@keyframes heart{
-  0%,100%{transform:scale(1)}
-  45%{transform:scale(1.2)}
-}
-.sparkles{position:absolute;inset:0;z-index:3}
-.spark{
-  position:absolute;width:5px;height:5px;border-radius:50%;
-  background:#fff;
-  box-shadow:0 0 7px #fff,0 0 14px var(--blue),0 0 22px var(--pink);
-  opacity:0;
-  animation:sparkle 3s linear infinite;
-}
-.s1{left:15%;top:30%;animation-delay:.1s}
-.s2{left:28%;top:18%;animation-delay:1.1s}
-.s3{left:72%;top:22%;animation-delay:1.8s}
-.s4{left:84%;top:47%;animation-delay:.7s}
-.s5{left:20%;top:69%;animation-delay:2.2s}
-.s6{left:67%;top:75%;animation-delay:1.4s}
-@keyframes sparkle{
-  0%,100%{opacity:0;transform:scale(.2)}
-  50%{opacity:1;transform:scale(1.8)}
-}
-#idle{
-  position:absolute;inset:0;
-  display:flex;align-items:center;justify-content:center;
-  opacity:.12;
-  transition:opacity 1.5s ease;
-}
-#idle.hidden{opacity:0}
-.idle-cloud{
-  padding:20px 38px;border-radius:50%;
-  font-size:clamp(16px,1.5vw,28px);
-  font-weight:800;letter-spacing:.2em;text-transform:uppercase;
-  color:#fff;
-  text-shadow:0 0 9px #fff,0 0 20px var(--blue),0 0 32px var(--pink);
-  filter:blur(.15px);
-}
-@media (max-width:700px){
-  .cloud-message{width:98vw}
-  .copy{width:96%}
-}
-</style>
-</head>
-<body>
-<div id="stage">
-  <div id="idle"><div class="idle-cloud">☁ Slow Tide — Messages in the Clouds ☁</div></div>
-
-  <div id="cloudMessage" class="cloud-message">
-    <div class="cloud-bank">
-      <div class="mist"></div>
-      <div class="puff p1"></div><div class="puff p2"></div>
-      <div class="puff p3"></div><div class="puff p4"></div>
-      <div class="puff p5"></div>
-    </div>
-
-    <div class="sparkles">
-      <i class="spark s1"></i><i class="spark s2"></i><i class="spark s3"></i>
-      <i class="spark s4"></i><i class="spark s5"></i><i class="spark s6"></i>
-    </div>
-
-    <div class="copy">
-      <div class="kicker">☁ A Message in the Clouds ☁</div>
-      <div id="recipient" class="recipient">FOR YOU</div>
-      <div id="message" class="message">Something beautiful is floating your way.</div>
-      <div id="sender" class="sender">— SLOW TIDE <span class="heart">♥</span></div>
-    </div>
-  </div>
-</div>
-
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent!important}
+#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:transparent;pointer-events:none}
+#cloud{position:relative;width:99vw;max-width:none;height:94vh;opacity:0;transform:scale(.72);filter:blur(24px);transition:opacity 2s,transform 2.6s,filter 2.2s}
+#cloud.show{opacity:1;transform:scale(1);filter:blur(0)}#cloud.leave{opacity:0;transform:scale(1.12);filter:blur(28px)}
+.puff{position:absolute;border-radius:50%;background:radial-gradient(circle at 45% 35%,#fff 0%,#8deaff 12%,#329cff 30%,#762fce 52%,#ff2dca 68%,rgba(25,10,80,.3) 78%,transparent 82%);filter:blur(4px) drop-shadow(0 0 20px rgba(70,225,255,.9)) drop-shadow(0 0 32px rgba(255,45,202,.8));mix-blend-mode:screen;animation:breathe 5s ease-in-out infinite alternate}
+.p1{width:34%;height:48%;left:0;top:29%}.p2{width:39%;height:58%;left:14%;top:12%;animation-delay:-1s}.p3{width:40%;height:66%;left:30%;top:0;animation-delay:-2s}.p4{width:39%;height:58%;right:14%;top:12%;animation-delay:-3s}.p5{width:34%;height:48%;right:0;top:29%;animation-delay:-4s}.p6{width:47%;height:40%;left:8%;bottom:3%;animation-delay:-2.5s}.p7{width:47%;height:40%;right:8%;bottom:3%;animation-delay:-3.5s}
+@keyframes breathe{from{transform:translate(-5px,4px) scale(.98)}to{transform:translate(7px,-6px) scale(1.05)}}
+.inner{position:absolute;inset:14% 5%;border-radius:50%;background:radial-gradient(ellipse,rgba(20,5,65,.92),rgba(55,13,115,.62) 48%,transparent 73%);filter:blur(10px)}
+.content{position:absolute;z-index:5;inset:10% 5%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff}
+.for{font:900 clamp(38px,4.6vw,86px) Georgia,serif;letter-spacing:.1em;text-shadow:0 0 6px #fff,0 0 14px #fff,0 0 30px #ff45cb,0 0 55px #ff1fbb,0 0 80px #39dfff}
+.to{font:900 clamp(105px,16vw,285px) Georgia,serif;line-height:.9;text-transform:uppercase;-webkit-text-stroke:2px rgba(255,80,205,.8);text-shadow:0 0 8px #fff,0 0 18px #fff,0 0 38px #ff45ca,0 0 70px #ff1dbb,0 0 105px #40dfff;animation:pulse 2.5s ease-in-out infinite alternate}
+.message{max-width:1400px;margin:3vh auto 2vh;font:700 clamp(52px,7vw,128px)/1.04 "Brush Script MT","Segoe Script",cursive;text-shadow:0 0 7px #fff,0 0 16px #fff,0 0 34px #ffb1eb,0 0 62px #ff35c4,0 0 95px #ff1fae}
+.from{font:800 clamp(34px,4vw,72px) Georgia,serif;text-transform:uppercase;letter-spacing:.08em;color:#eafbff;text-shadow:0 0 7px #fff,0 0 17px #fff,0 0 38px #36dfff,0 0 70px #168cff,0 0 90px #ff35c3}
+.heart{color:#ff55cb;text-shadow:0 0 7px #fff,0 0 20px #ff35c3;display:inline-block;animation:beat 1.5s infinite}
+.decor{position:absolute;inset:0;z-index:4}.fh{position:absolute;color:#ff79da;font-size:clamp(28px,4vw,72px);text-shadow:0 0 8px #fff,0 0 21px #ff41cb,0 0 32px #44dfff;animation:float 4s ease-in-out infinite}.h1{left:8%;top:47%}.h2{left:22%;top:31%;animation-delay:-1s}.h3{right:22%;top:31%;animation-delay:-2s}.h4{right:8%;top:47%;animation-delay:-.6s}
+@keyframes pulse{to{filter:brightness(1.25);transform:scale(1.015)}}@keyframes beat{50%{transform:scale(1.25)}}@keyframes float{50%{transform:translateY(-12px) scale(1.08)}}
+</style></head>
+<body><div id="stage"><div id="cloud">
+<div class="puff p1"></div><div class="puff p2"></div><div class="puff p3"></div><div class="puff p4"></div><div class="puff p5"></div><div class="puff p6"></div><div class="puff p7"></div><div class="inner"></div>
+<div class="decor"><span class="fh h1">♥</span><span class="fh h2">♡</span><span class="fh h3">♡</span><span class="fh h4">♥</span></div>
+<div class="content"><div class="for">FOR</div><div id="to" class="to">KEIA</div><div id="msg" class="message">I'd choose you in every lifetime.</div><div id="from" class="from">— JERMAINE <span class="heart">♥</span></div></div>
+</div></div>
 <script>
-const API_URL = "/api/cloud-message";
-const POLL_MS = 2000;
-const DISPLAY_MS = 45000;
-
-const box = document.getElementById("cloudMessage");
-const idle = document.getElementById("idle");
-const recipient = document.getElementById("recipient");
-const message = document.getElementById("message");
-const sender = document.getElementById("sender");
-
-let shownId = null;
-let hideTimer = null;
-
-function safeText(v, fallback="") {
-  if (v === undefined || v === null) return fallback;
-  return String(v).replace(/\s+/g," ").trim();
-}
-
-function hideCloudMessage() {
-  box.classList.remove("visible");
-  box.classList.add("leaving");
-
-  setTimeout(() => {
-    box.classList.remove("leaving");
-    idle.classList.remove("hidden");
-  }, 2600);
-}
-
-function showCloudMessage(data) {
-  recipient.textContent = "FOR " + safeText(data.to, "SOMEONE SPECIAL").toUpperCase();
-  message.textContent = safeText(data.message, "Thinking of you.");
-  sender.innerHTML = "";
-
-  const senderText = document.createTextNode("— " + safeText(data.from, "Anonymous") + " ");
-  const heart = document.createElement("span");
-  heart.className = "heart";
-  heart.textContent = "♥";
-  sender.appendChild(senderText);
-  sender.appendChild(heart);
-
-  if (hideTimer) clearTimeout(hideTimer);
-
-  box.classList.remove("visible","leaving");
-  idle.classList.add("hidden");
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => box.classList.add("visible"));
-  });
-
-  hideTimer = setTimeout(hideCloudMessage, DISPLAY_MS);
-}
-
-async function poll() {
-  try {
-    const response = await fetch(API_URL + "?t=" + Date.now(), {
-      cache:"no-store"
-    });
-
-    if (!response.ok) return;
-
-    const data = await response.json();
-    if (!data.success || data.status !== "active") return;
-    if (data.id === undefined || data.id === null) return;
-    if (String(data.id) === String(shownId)) return;
-
-    shownId = data.id;
-    showCloudMessage(data);
-  } catch (err) {
-    console.log("Cloud display waiting:", err.message);
-  }
-}
-
-poll();
-setInterval(poll, POLL_MS);
-</script>
-</body>
-</html>
+const API="/api/cloud-message",POLL=2000,DISPLAY=45000;
+const cloud=document.getElementById("cloud"),to=document.getElementById("to"),msg=document.getElementById("msg"),from=document.getElementById("from");
+let last=null,timer=null;
+const clean=(v,f="")=>String(v??f).replace(/\s+/g," ").trim();
+function hide(){cloud.classList.remove("show");cloud.classList.add("leave");setTimeout(()=>cloud.classList.remove("leave"),2600)}
+function show(d){to.textContent=clean(d.to,"SOMEONE SPECIAL").toUpperCase();msg.textContent=clean(d.message,"Thinking of you.");from.innerHTML="";from.appendChild(document.createTextNode("— "+clean(d.from,"Anonymous")+" "));let h=document.createElement("span");h.className="heart";h.textContent="♥";from.appendChild(h);clearTimeout(timer);cloud.classList.remove("show","leave");requestAnimationFrame(()=>requestAnimationFrame(()=>cloud.classList.add("show")));timer=setTimeout(hide,DISPLAY)}
+async function poll(){try{let r=await fetch(API+"?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;let d=await r.json();if(!d.success||d.status!=="active"||d.id==null||String(d.id)===String(last))return;last=d.id;show(d)}catch(e){}}
+poll();setInterval(poll,POLL);
+</script></body></html>
