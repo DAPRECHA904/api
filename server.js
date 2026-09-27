@@ -66,6 +66,37 @@
 
     // YOUTUBE MUSIC VIDEO
     const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || "";
+
+// KNOWN OFFICIAL MUSIC VIDEO OVERRIDES
+// Keys are normalized "artist - song" strings. Add more known official videos here as needed.
+const OFFICIAL_VIDEO_OVERRIDES = {
+  "mk xyz - one time": "cLwnojWx0Ac"
+};
+
+function videoOverrideKey(artist, song) {
+  return normalizeVideoText(`${artist || ""} - ${song || ""}`)
+    .replace(/\b(feat|ft|featuring)\b.*$/i, "")
+    .replace(/\bofficial\b|\bmusic video\b|\bvideo\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getOfficialVideoOverride(artist, song) {
+  const exact = videoOverrideKey(artist, song);
+  if (OFFICIAL_VIDEO_OVERRIDES[exact]) return OFFICIAL_VIDEO_OVERRIDES[exact];
+
+  // Also tolerate punctuation/version cleanup differences.
+  const wantedArtist = normalizeVideoText(artist);
+  const wantedSong = normalizeVideoText(removeFeaturedArtists(removeVersionInfo(song)));
+  for (const [key, videoId] of Object.entries(OFFICIAL_VIDEO_OVERRIDES)) {
+    const normalizedKey = normalizeVideoText(key);
+    if (normalizedKey.includes(wantedArtist) && normalizedKey.includes(wantedSong)) {
+      return videoId;
+    }
+  }
+  return null;
+}
+
     let videoCache = {
         title: null,
         result: null,
@@ -2656,6 +2687,20 @@
     }
 
     async function searchYouTubeMusicVideo(artist, song) {
+  const overrideVideoId = getOfficialVideoOverride(artist, song);
+  if (overrideVideoId) {
+    console.log("YOUTUBE OFFICIAL OVERRIDE:", artist, "-", song, "=>", overrideVideoId);
+    return {
+      videoId: overrideVideoId,
+      videoTitle: `${artist} - ${song} (Official Music Video)`,
+      channelTitle: "Official override",
+      thumbnail: `https://i.ytimg.com/vi/${overrideVideoId}/hqdefault.jpg`,
+      query: "official override",
+      score: 10000,
+      override: true
+    };
+  }
+
         if (!YOUTUBE_API_KEY) {
             throw new Error("YOUTUBE_API_KEY is not configured");
         }
