@@ -8,6 +8,18 @@
     app.use(express.json());
     app.use(express.static(__dirname));
 
+// ======================================================
+// SLOW TIDE — MESSAGES IN THE CLOUDS
+// ======================================================
+app.get("/clouds", (req, res) => {
+    res.sendFile(path.join(__dirname, "clouds.html"));
+});
+
+app.get("/clouds.html", (req, res) => {
+    res.sendFile(path.join(__dirname, "clouds.html"));
+});
+
+
 
     // ======================================================
     // SLOW TIDE LYRICS TV
@@ -103,6 +115,130 @@ function getOfficialVideoOverride(artist, song) {
         updated: 0
     };
 
+
+
+    // ======================================================
+    // CLOUD MESSAGE STATE + API
+    // ======================================================
+    const CLOUD_MESSAGE_LIFETIME_MS = 60000;
+    const CLOUD_SUBMIT_COOLDOWN_MS = 15000;
+    const CLOUD_TO_MAX = 40;
+    const CLOUD_FROM_MAX = 40;
+    const CLOUD_MESSAGE_MAX = 180;
+
+    let cloudMessage = null;
+    let nextCloudMessageId = 1;
+    const cloudLastSubmitByKey = new Map();
+
+    function cleanCloudField(value, maxLength) {
+        if (typeof value !== "string") return "";
+        return value
+            .replace(/[\u0000-\u001F\u007F]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, maxLength);
+    }
+
+    function getCloudClientKey(req) {
+        const senderKey = cleanCloudField(
+            req.body && req.body.senderKey ? req.body.senderKey : "",
+            80
+        );
+        if (senderKey) return "sl:" + senderKey.toLowerCase();
+
+        const forwarded = String(req.headers["x-forwarded-for"] || "")
+            .split(",")[0]
+            .trim();
+
+        return "ip:" + (forwarded || req.ip || "unknown");
+    }
+
+    function cloudMessageIsActive() {
+        return Boolean(
+            cloudMessage &&
+            cloudMessage.createdAt &&
+            (Date.now() - cloudMessage.createdAt) <= CLOUD_MESSAGE_LIFETIME_MS
+        );
+    }
+
+    app.get("/api/cloud-message", (req, res) => {
+        res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+
+        if (!cloudMessageIsActive()) {
+            cloudMessage = null;
+            return res.json({
+                success: false,
+                status: "idle",
+                message: "No active cloud message."
+            });
+        }
+
+        return res.json({
+            success: true,
+            status: "active",
+            ...cloudMessage,
+            expiresAt: cloudMessage.createdAt + CLOUD_MESSAGE_LIFETIME_MS
+        });
+    });
+
+    app.post("/api/cloud-message", (req, res) => {
+        res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+
+        const to = cleanCloudField(req.body && req.body.to, CLOUD_TO_MAX);
+        const from = cleanCloudField(req.body && req.body.from, CLOUD_FROM_MAX);
+        const message = cleanCloudField(
+            req.body && req.body.message,
+            CLOUD_MESSAGE_MAX
+        );
+
+        if (!to || !message) {
+            return res.status(400).json({
+                success: false,
+                status: "invalid",
+                error: "Both 'to' and 'message' are required."
+            });
+        }
+
+        const clientKey = getCloudClientKey(req);
+        const now = Date.now();
+        const lastSubmit = cloudLastSubmitByKey.get(clientKey) || 0;
+        const waitMs = CLOUD_SUBMIT_COOLDOWN_MS - (now - lastSubmit);
+
+        if (waitMs > 0) {
+            return res.status(429).json({
+                success: false,
+                status: "cooldown",
+                error: "Please wait before sending another cloud message.",
+                retryAfterSeconds: Math.ceil(waitMs / 1000)
+            });
+        }
+
+        cloudLastSubmitByKey.set(clientKey, now);
+
+        cloudMessage = {
+            id: nextCloudMessageId++,
+            to: to,
+            from: from || "Anonymous",
+            message: message,
+            createdAt: now
+        };
+
+        console.log(
+            "CLOUD MESSAGE:",
+            cloudMessage.from,
+            "->",
+            cloudMessage.to,
+            ":",
+            cloudMessage.message
+        );
+
+        return res.status(201).json({
+            success: true,
+            status: "sent",
+            ...cloudMessage,
+            expiresAt: now + CLOUD_MESSAGE_LIFETIME_MS
+        });
+    });
 
     // ======================================================
     // CLEAN TEXT
