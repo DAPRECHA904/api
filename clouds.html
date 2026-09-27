@@ -51,7 +51,7 @@ html,body{
 }
 
 /* LEFT physical cloud */
-.slot0{left:7%; top:48%}
+.slot0{left:19%; top:30%; width:58%; height:34%}
 .slot1{left:7%; top:65%}
 .slot2{left:7%; top:82%}
 
@@ -136,6 +136,27 @@ html,body{
       transparent 76%);
   filter:blur(11px);
   animation:auraPulse 3.2s ease-in-out infinite alternate;
+}
+
+
+/* SLOT 1 IN-WORLD CALIBRATION TEST */
+.slot0 .for{
+  font-size:clamp(18px,2.2vw,46px);
+}
+.slot0 .to{
+  font-size:clamp(55px,7.2vw,145px);
+  white-space:normal;
+  overflow:visible;
+}
+.slot0 .message{
+  font-size:clamp(31px,4.1vw,82px);
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+}
+.slot0 .from{
+  font-size:clamp(18px,2vw,40px);
+  overflow:visible;
 }
 
 @keyframes namePulse{
