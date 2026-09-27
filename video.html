@@ -54,6 +54,8 @@
      if(!playerReady){pendingVideo={videoId:videoId,elapsed:elapsed};return;}
      currentVideoId=videoId;player.mute();player.setVolume(0);
      player.loadVideoById({videoId:videoId,startSeconds:start});
+      setTimeout(forceMutedAutoplay, 150);
+      startAutoplayRetries();
      player.mute();player.setVolume(0);player.playVideo();
      document.getElementById("fallback").classList.add("hidden");
     }
@@ -69,7 +71,35 @@
       if(Math.abs(actual-wanted)>=RESYNC_THRESHOLD_SECONDS){player.seekTo(wanted,true);player.mute();}
      }catch(e){}
     }
-    async function updateVideo(){
+    
+let autoplayRetryTimer = null;
+
+function forceMutedAutoplay() {
+  if (!player || typeof player.mute !== "function") return;
+  try {
+    player.mute();
+    player.setVolume(0);
+    const state = player.getPlayerState();
+    if (state !== YT.PlayerState.PLAYING) {
+      player.playVideo();
+    }
+  } catch (e) {}
+}
+
+function startAutoplayRetries() {
+  if (autoplayRetryTimer) clearInterval(autoplayRetryTimer);
+  let attempts = 0;
+  autoplayRetryTimer = setInterval(() => {
+    attempts++;
+    forceMutedAutoplay();
+    if (attempts >= 12) {
+      clearInterval(autoplayRetryTimer);
+      autoplayRetryTimer = null;
+    }
+  }, 500);
+}
+
+async function updateVideo(){
      try{
       const r=await fetch("/api/video?t="+Date.now(),{cache:"no-store"});
       const d=await r.json();
