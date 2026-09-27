@@ -118,15 +118,17 @@ function getOfficialVideoOverride(artist, song) {
 
 
     // ======================================================
-    // CLOUD MESSAGE STATE + API
+    // CLOUD MESSAGE STATE + API — MULTI CLOUD VERSION
     // ======================================================
-    const CLOUD_MESSAGE_LIFETIME_MS = 60000;
+
+    const CLOUD_MESSAGE_LIFETIME_MS = 10 * 60 * 1000;
     const CLOUD_SUBMIT_COOLDOWN_MS = 15000;
+    const CLOUD_MAX_ACTIVE = 6;
     const CLOUD_TO_MAX = 40;
     const CLOUD_FROM_MAX = 40;
     const CLOUD_MESSAGE_MAX = 180;
 
-    let cloudMessage = null;
+    let cloudMessages = [];
     let nextCloudMessageId = 1;
     const cloudLastSubmitByKey = new Map();
 
@@ -153,31 +155,48 @@ function getOfficialVideoOverride(artist, song) {
         return "ip:" + (forwarded || req.ip || "unknown");
     }
 
-    function cloudMessageIsActive() {
-        return Boolean(
-            cloudMessage &&
-            cloudMessage.createdAt &&
-            (Date.now() - cloudMessage.createdAt) <= CLOUD_MESSAGE_LIFETIME_MS
+    function cleanupCloudMessages() {
+        const now = Date.now();
+
+        cloudMessages = cloudMessages.filter(item =>
+            item &&
+            item.createdAt &&
+            (now - item.createdAt) <= CLOUD_MESSAGE_LIFETIME_MS
         );
+
+        if (cloudMessages.length > CLOUD_MAX_ACTIVE) {
+            cloudMessages = cloudMessages.slice(-CLOUD_MAX_ACTIVE);
+        }
     }
 
     app.get("/api/cloud-message", (req, res) => {
         res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+        cleanupCloudMessages();
 
-        if (!cloudMessageIsActive()) {
-            cloudMessage = null;
+        if (cloudMessages.length === 0) {
             return res.json({
                 success: false,
                 status: "idle",
-                message: "No active cloud message."
+                count: 0,
+                maxActive: CLOUD_MAX_ACTIVE,
+                lifetimeSeconds: Math.floor(CLOUD_MESSAGE_LIFETIME_MS / 1000),
+                messages: [],
+                message: "No active cloud messages."
             });
         }
+
+        const messages = cloudMessages.map(item => ({
+            ...item,
+            expiresAt: item.createdAt + CLOUD_MESSAGE_LIFETIME_MS
+        }));
 
         return res.json({
             success: true,
             status: "active",
-            ...cloudMessage,
-            expiresAt: cloudMessage.createdAt + CLOUD_MESSAGE_LIFETIME_MS
+            count: messages.length,
+            maxActive: CLOUD_MAX_ACTIVE,
+            lifetimeSeconds: Math.floor(CLOUD_MESSAGE_LIFETIME_MS / 1000),
+            messages: messages
         });
     });
 
@@ -214,8 +233,9 @@ function getOfficialVideoOverride(artist, song) {
         }
 
         cloudLastSubmitByKey.set(clientKey, now);
+        cleanupCloudMessages();
 
-        cloudMessage = {
+        const newCloudMessage = {
             id: nextCloudMessageId++,
             to: to,
             from: from || "Anonymous",
@@ -223,22 +243,33 @@ function getOfficialVideoOverride(artist, song) {
             createdAt: now
         };
 
+        cloudMessages.push(newCloudMessage);
+
+        while (cloudMessages.length > CLOUD_MAX_ACTIVE) {
+            cloudMessages.shift();
+        }
+
         console.log(
             "CLOUD MESSAGE:",
-            cloudMessage.from,
+            newCloudMessage.from,
             "->",
-            cloudMessage.to,
+            newCloudMessage.to,
             ":",
-            cloudMessage.message
+            newCloudMessage.message,
+            "| ACTIVE:",
+            cloudMessages.length
         );
 
         return res.status(201).json({
             success: true,
             status: "sent",
-            ...cloudMessage,
-            expiresAt: now + CLOUD_MESSAGE_LIFETIME_MS
+            ...newCloudMessage,
+            expiresAt: now + CLOUD_MESSAGE_LIFETIME_MS,
+            activeCount: cloudMessages.length,
+            maxActive: CLOUD_MAX_ACTIVE
         });
     });
+
 
     // ======================================================
     // CLEAN TEXT
