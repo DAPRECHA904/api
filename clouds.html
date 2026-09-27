@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Slow Tide — Messages in the Clouds</title>
+
+<style>
+html,
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #030713;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+    position: relative;
+}
+
+/* ================================
+   NIGHT SKY
+================================ */
+
+.sky {
+    position: absolute;
+    inset: 0;
+
+    background:
+        radial-gradient(
+            circle at 72% 18%,
+            rgba(111, 207, 255, 0.22),
+            transparent 22%
+        ),
+        radial-gradient(
+            circle at 28% 75%,
+            rgba(255, 58, 180, 0.12),
+            transparent 28%
+        ),
+        linear-gradient(
+            180deg,
+            #07152d 0%,
+            #081226 38%,
+            #100c2c 70%,
+            #060713 100%
+        );
+}
+
+/* ================================
+   STARS
+================================ */
+
+.stars,
+.stars::before,
+.stars::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+    pointer-events: none;
+}
+
+.stars {
+    background-image:
+        radial-gradient(circle, white 1px, transparent 1.5px),
+        radial-gradient(circle, rgba(180,220,255,.8) 1px, transparent 1.5px);
+
+    background-size:
+        97px 97px,
+        151px 151px;
+
+    background-position:
+        12px 30px,
+        53px 81px;
+
+    opacity: .65;
+
+    animation: starPulse 5s ease-in-out infinite alternate;
+}
+
+.stars::before {
+    background-image:
+        radial-gradient(circle, rgba(255,255,255,.85) 1px, transparent 2px);
+
+    background-size: 211px 211px;
+    background-position: 90px 40px;
+
+    opacity: .45;
+}
+
+.stars::after {
+    background-image:
+        radial-gradient(circle, rgba(255,102,220,.8) 1px, transparent 2px),
+        radial-gradient(circle, rgba(84,215,255,.8) 1px, transparent 2px);
+
+    background-size:
+        281px 281px,
+        337px 337px;
+
+    opacity: .3;
+}
+
+@keyframes starPulse {
+    from {
+        opacity: .4;
+    }
+
+    to {
+        opacity: .85;
+    }
+}
+
+/* ================================
+   MOON
+================================ */
+
+.moon {
+    position: absolute;
+
+    width: min(16vw, 230px);
+    aspect-ratio: 1;
+
+    right: 9%;
+    top: 8%;
+
+    border-radius: 50%;
+
+    background:
+        radial-gradient(
+            circle at 38% 35%,
+            #ffffff 0%,
+            #edf8ff 35%,
+            #b9eaff 67%,
+            #71cfff 100%
+        );
+
+    box-shadow:
+        0 0 30px rgba(160,225,255,.9),
+        0 0 75px rgba(74,194,255,.55),
+        0 0 150px rgba(58,150,255,.3);
+
+    opacity: .92;
+}
+
+/* ================================
+   CLOUDS
+================================ */
+
+.cloud {
+    position: absolute;
+
+    width: 46vw;
+    height: 17vw;
+
+    min-width: 500px;
+    min-height: 170px;
+
+    border-radius: 50%;
+
+    filter: blur(18px);
+
+    opacity: .18;
+
+    pointer-events: none;
+
+    background:
+        radial-gradient(
+            ellipse at 25% 55%,
+            rgba(255,255,255,.9),
+            transparent 45%
+        ),
+        radial-gradient(
+            ellipse at 48% 35%,
+            rgba(176,220,255,.85),
+            transparent 48%
+        ),
+        radial-gradient(
+            ellipse at 72% 60%,
+            rgba(255,120,230,.55),
+            transparent 48%
+        );
+}
+
+.cloud1 {
+    top: 10%;
+    left: -55%;
+
+    animation: drift1 48s linear infinite;
+}
+
+.cloud2 {
+    top: 48%;
+    left: -60%;
+
+    transform: scale(.8);
+
+    opacity: .13;
+
+    animation: drift2 62s linear infinite;
+}
+
+.cloud3 {
+    top: 68%;
+    left: -50%;
+
+    transform: scale(1.2);
+
+    opacity: .09;
+
+    animation: drift3 78s linear infinite;
+}
+
+@keyframes drift1 {
+    from {
+        left: -55%;
+    }
+
+    to {
+        left: 115%;
+    }
+}
+
+@keyframes drift2 {
+    from {
+        left: -65%;
+    }
+
+    to {
+        left: 120%;
+    }
+}
+
+@keyframes drift3 {
+    from {
+        left: -60%;
+    }
+
+    to {
+        left: 120%;
+    }
+}
+
+/* ================================
+   MESSAGE AREA
+================================ */
+
+.message-stage {
+    position: absolute;
+
+    inset: 0;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    padding: 5vw;
+
+    box-sizing: border-box;
+
+    text-align: center;
+
+    z-index: 10;
+}
+
+.message-container {
+    width: min(88vw, 1500px);
+
+    opacity: 0;
+
+    transform:
+        translateY(25px)
+        scale(.96);
+
+    transition:
+        opacity 2.2s ease,
+        transform 2.2s ease;
+
+    pointer-events: none;
+}
+
+.message-container.visible {
+    opacity: 1;
+
+    transform:
+        translateY(0)
+        scale(1);
+}
+
+/* ================================
+   HEADER
+================================ */
+
+.cloud-title {
+    font-size: clamp(
+        22px,
+        2.3vw,
+        46px
+    );
+
+    letter-spacing: .25em;
+
+    text-transform: uppercase;
+
+    color: #dff7ff;
+
+    margin-bottom: 25px;
+
+    text-shadow:
+        0 0 8px #ffffff,
+        0 0 18px #46d9ff,
+        0 0 34px rgba(70,217,255,.8);
+}
+
+/* ================================
+   RECIPIENT
+================================ */
+
+.recipient {
+    font-size: clamp(
+        42px,
+        6vw,
+        110px
+    );
+
+    font-weight: 900;
+
+    text-transform: uppercase;
+
+    letter-spacing: .08em;
+
+    color: white;
+
+    margin-bottom: 28px;
+
+    text-shadow:
+        0 0 8px white,
+        0 0 20px #ff4fc8,
+        0 0 45px #ff1694,
+        0 0 80px rgba(255,22,148,.65);
+}
+
+/* ================================
+   LOVE MESSAGE
+================================ */
+
+.love-message {
+    max-width: 1200px;
+
+    margin: 0 auto;
+
+    font-size: clamp(
+        32px,
+        4.3vw,
+        82px
+    );
+
+    font-weight: 600;
+
+    line-height: 1.2;
+
+    color: #ffffff;
+
+    text-shadow:
+        0 0 7px rgba(255,255,255,.9),
+        0 0 18px rgba(81,213,255,.8),
+        0 0 35px rgba(255,65,190,.55);
+}
+
+/* ================================
+   HEART
+================================ */
+
+.heart {
+    margin: 25px 0 12px;
+
+    font-size: clamp(
+        34px,
+        4vw,
+        72px
+    );
+
+    color: #ff4dbd;
+
+    text-shadow:
+        0 0 10px #ff4dbd,
+        0 0 25px #ff168f,
+        0 0 50px #ff168f;
+
+    animation: heartbeat 1.7s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    45% {
+        transform: scale(1.12);
+    }
+
+    60% {
+        transform: scale(1.04);
+    }
+}
+
+/* ================================
+   SENDER
+================================ */
+
+.sender {
+    font-size: clamp(
+        20px,
+        2.2vw,
+        40px
+    );
+
+    color: #aeeeff;
+
+    letter-spacing: .12em;
+
+    text-transform: uppercase;
+
+    text-shadow:
+        0 0 8px #49d8ff,
+        0 0 20px rgba(73,216,255,.7);
+}
+
+/* ================================
+   IDLE BRANDING
+================================ */
+
+.idle-brand {
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    bottom: 7%;
+
+    text-align: center;
+
+    color: rgba(255,255,255,.45);
+
+    font-size: clamp(
+        15px,
+        1.5vw,
+        27px
+    );
+
+    letter-spacing: .35em;
+
+    text-transform: uppercase;
+
+    z-index: 5;
+
+    transition: opacity 1.5s ease;
+
+    text-shadow:
+        0 0 12px rgba(73,216,255,.5);
+}
+
+.idle-brand strong {
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: rgba(255,255,255,.75);
+
+    font-size: 1.55em;
+
+    letter-spacing: .2em;
+
+    text-shadow:
+        0 0 15px rgba(255,72,194,.6);
+}
+
+.idle-brand.hidden {
+    opacity: 0;
+}
+
+/* ================================
+   EDGE VIGNETTE
+================================ */
+
+.vignette {
+    position: absolute;
+
+    inset: 0;
+
+    pointer-events: none;
+
+    z-index: 20;
+
+    box-shadow:
+        inset 0 0 120px rgba(0,0,0,.85),
+        inset 0 0 250px rgba(0,0,0,.35);
+}
+</style>
+</head>
+
+<body>
+
+<div class="sky"></div>
+
+<div class="stars"></div>
+
+<div class="moon"></div>
+
+<div class="cloud cloud1"></div>
+<div class="cloud cloud2"></div>
+<div class="cloud cloud3"></div>
+
+<div class="message-stage">
+
+    <div
+        id="messageContainer"
+        class="message-container"
+    >
+
+        <div class="cloud-title">
+            ☁ A MESSAGE IN THE CLOUDS ☁
+        </div>
+
+        <div
+            id="recipient"
+            class="recipient"
+        >
+            FOR YOU
+        </div>
+
+        <div
+            id="loveMessage"
+            class="love-message"
+        >
+            Something beautiful is floating your way.
+        </div>
+
+        <div class="heart">
+            ♥
+        </div>
+
+        <div
+            id="sender"
+            class="sender"
+        >
+            — SLOW TIDE
+        </div>
+
+    </div>
+
+</div>
+
+<div
+    id="idleBrand"
+    class="idle-brand"
+>
+    <strong>SLOW TIDE</strong>
+
+    Messages in the Clouds
+</div>
+
+<div class="vignette"></div>
+
+<script>
+
+/* =====================================
+   SLOW TIDE — MESSAGES IN THE CLOUDS
+
+   This page expects:
+
+   GET /api/cloud-message
+
+   Example response:
+
+   {
+       "success": true,
+       "id": 123,
+       "to": "Keia",
+       "from": "Jermaine",
+       "message": "I'd choose you in every lifetime.",
+       "createdAt": 1727450000000
+   }
+
+===================================== */
+
+const API_URL = "/api/cloud-message";
+
+/*
+How long the message stays visible
+after it appears.
+*/
+const MESSAGE_VISIBLE_MS = 45000;
+
+/*
+How often the screen checks the server.
+*/
+const POLL_INTERVAL_MS = 2500;
+
+/*
+If a message is older than this when the
+screen first sees it, don't suddenly show it.
+*/
+const MAX_MESSAGE_AGE_MS = 60000;
+
+
+const container =
+    document.getElementById("messageContainer");
+
+const recipient =
+    document.getElementById("recipient");
+
+const loveMessage =
+    document.getElementById("loveMessage");
+
+const sender =
+    document.getElementById("sender");
+
+const idleBrand =
+    document.getElementById("idleBrand");
+
+
+let currentMessageId = null;
+
+let hideTimer = null;
+
+let initialized = false;
+
+
+/* =====================================
+   SAFE TEXT
+===================================== */
+
+function cleanText(value, fallback = "") {
+
+    if (
+        value === undefined ||
+        value === null
+    ) {
+        return fallback;
+    }
+
+    return String(value)
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+
+/* =====================================
+   DISPLAY MESSAGE
+===================================== */
+
+function showMessage(data) {
+
+    const to =
+        cleanText(
+            data.to,
+            "Someone Special"
+        );
+
+    const from =
+        cleanText(
+            data.from,
+            "Anonymous"
+        );
+
+    const message =
+        cleanText(
+            data.message,
+            "Thinking of you."
+        );
+
+
+    recipient.textContent =
+        "FOR " + to;
+
+
+    loveMessage.textContent =
+        message;
+
+
+    sender.textContent =
+        "— " + from;
+
+
+    if (hideTimer) {
+        clearTimeout(hideTimer);
+    }
+
+
+    /*
+    Remove first so repeated messages
+    can animate correctly.
+    */
+
+    container.classList.remove("visible");
+
+
+    setTimeout(() => {
+
+        idleBrand.classList.add("hidden");
+
+        container.classList.add("visible");
+
+    }, 150);
+
+
+    hideTimer =
+        setTimeout(
+            hideMessage,
+            MESSAGE_VISIBLE_MS
+        );
+}
+
+
+/* =====================================
+   HIDE MESSAGE
+===================================== */
+
+function hideMessage() {
+
+    container.classList.remove("visible");
+
+
+    setTimeout(() => {
+
+        idleBrand.classList.remove("hidden");
+
+    }, 1800);
+}
+
+
+/* =====================================
+   CHECK SERVER
+===================================== */
+
+async function checkCloudMessage() {
+
+    try {
+
+        const response =
+            await fetch(
+                API_URL + "?t=" + Date.now(),
+                {
+                    cache: "no-store"
+                }
+            );
+
+
+        if (!response.ok) {
+            return;
+        }
+
+
+        const data =
+            await response.json();
+
+
+        if (!data.success) {
+
+            initialized = true;
+
+            return;
+        }
+
+
+        /*
+        Don't replay the same message.
+        */
+
+        if (
+            data.id === undefined ||
+            data.id === null
+        ) {
+            return;
+        }
+
+
+        if (
+            String(data.id) ===
+            String(currentMessageId)
+        ) {
+            return;
+        }
+
+
+        /*
+        On first load, don't replay a very
+        old cloud message.
+        */
+
+        if (!initialized) {
+
+            initialized = true;
+
+
+            if (data.createdAt) {
+
+                const age =
+                    Date.now() -
+                    Number(data.createdAt);
+
+
+                if (
+                    Number.isFinite(age) &&
+                    age > MAX_MESSAGE_AGE_MS
+                ) {
+
+                    currentMessageId =
+                        data.id;
+
+                    return;
+                }
+            }
+        }
+
+
+        currentMessageId =
+            data.id;
+
+
+        showMessage(data);
+
+    }
+
+    catch (error) {
+
+        /*
+        Keep the screen beautiful even if
+        Render is waking up or temporarily
+        unavailable.
+        */
+
+        console.log(
+            "Cloud message check:",
+            error.message
+        );
+    }
+}
+
+
+/* =====================================
+   START
+===================================== */
+
+checkCloudMessage();
+
+setInterval(
+    checkCloudMessage,
+    POLL_INTERVAL_MS
+);
+
+</script>
+
+</body>
+</html>
