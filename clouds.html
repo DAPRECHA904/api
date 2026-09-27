@@ -115,6 +115,13 @@ html,body{
 }
 @keyframes beat{50%{transform:scale(1.25)}}
 @keyframes float{50%{transform:translateY(-12px) scale(1.08)}}
+
+/* Slow Tide MOAP: transparent area around the cloud */
+html, body {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
 </style>
 </head>
 <body>
@@ -202,7 +209,7 @@ async function poll(){
     const d=await r.json();
     const messages=Array.isArray(d.messages) ? d.messages : [];
 
-    const selected=messages[SLOT-1];
+    const selected=messages.find(m => Number(m.slot) === SLOT);
 
     if(!selected){
       if(shownId!==null) hide();
