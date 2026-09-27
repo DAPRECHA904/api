@@ -1,36 +1,255 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Slow Tide — Messages in the Clouds</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent!important}
-#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:transparent;pointer-events:none}
-#cloud{position:relative;width:99vw;max-width:none;height:94vh;opacity:0;transform:scale(.72);filter:blur(24px);transition:opacity 2s,transform 2.6s,filter 2.2s}
-#cloud.show{opacity:1;transform:scale(1);filter:blur(0)}#cloud.leave{opacity:0;transform:scale(1.12);filter:blur(28px)}
-.puff{position:absolute;border-radius:50%;background:radial-gradient(circle at 45% 35%,#fff 0%,#8deaff 12%,#329cff 30%,#762fce 52%,#ff2dca 68%,rgba(25,10,80,.3) 78%,transparent 82%);filter:blur(4px) drop-shadow(0 0 20px rgba(70,225,255,.9)) drop-shadow(0 0 32px rgba(255,45,202,.8));mix-blend-mode:screen;animation:breathe 5s ease-in-out infinite alternate}
-.p1{width:34%;height:48%;left:0;top:29%}.p2{width:39%;height:58%;left:14%;top:12%;animation-delay:-1s}.p3{width:40%;height:66%;left:30%;top:0;animation-delay:-2s}.p4{width:39%;height:58%;right:14%;top:12%;animation-delay:-3s}.p5{width:34%;height:48%;right:0;top:29%;animation-delay:-4s}.p6{width:47%;height:40%;left:8%;bottom:3%;animation-delay:-2.5s}.p7{width:47%;height:40%;right:8%;bottom:3%;animation-delay:-3.5s}
-@keyframes breathe{from{transform:translate(-5px,4px) scale(.98)}to{transform:translate(7px,-6px) scale(1.05)}}
-.inner{position:absolute;inset:14% 5%;border-radius:50%;background:radial-gradient(ellipse,rgba(20,5,65,.92),rgba(55,13,115,.62) 48%,transparent 73%);filter:blur(10px)}
-.content{position:absolute;z-index:5;inset:10% 5%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff}
-.for{font:900 clamp(38px,4.6vw,86px) Georgia,serif;letter-spacing:.1em;text-shadow:0 0 6px #fff,0 0 14px #fff,0 0 30px #ff45cb,0 0 55px #ff1fbb,0 0 80px #39dfff}
-.to{font:900 clamp(105px,16vw,285px) Georgia,serif;line-height:.9;text-transform:uppercase;-webkit-text-stroke:2px rgba(255,80,205,.8);text-shadow:0 0 8px #fff,0 0 18px #fff,0 0 38px #ff45ca,0 0 70px #ff1dbb,0 0 105px #40dfff;animation:pulse 2.5s ease-in-out infinite alternate}
-.message{max-width:1400px;margin:3vh auto 2vh;font:700 clamp(52px,7vw,128px)/1.04 "Brush Script MT","Segoe Script",cursive;text-shadow:0 0 7px #fff,0 0 16px #fff,0 0 34px #ffb1eb,0 0 62px #ff35c4,0 0 95px #ff1fae}
-.from{font:800 clamp(34px,4vw,72px) Georgia,serif;text-transform:uppercase;letter-spacing:.08em;color:#eafbff;text-shadow:0 0 7px #fff,0 0 17px #fff,0 0 38px #36dfff,0 0 70px #168cff,0 0 90px #ff35c3}
-.heart{color:#ff55cb;text-shadow:0 0 7px #fff,0 0 20px #ff35c3;display:inline-block;animation:beat 1.5s infinite}
-.decor{position:absolute;inset:0;z-index:4}.fh{position:absolute;color:#ff79da;font-size:clamp(28px,4vw,72px);text-shadow:0 0 8px #fff,0 0 21px #ff41cb,0 0 32px #44dfff;animation:float 4s ease-in-out infinite}.h1{left:8%;top:47%}.h2{left:22%;top:31%;animation-delay:-1s}.h3{right:22%;top:31%;animation-delay:-2s}.h4{right:8%;top:47%;animation-delay:-.6s}
-@keyframes pulse{to{filter:brightness(1.25);transform:scale(1.015)}}@keyframes beat{50%{transform:scale(1.25)}}@keyframes float{50%{transform:translateY(-12px) scale(1.08)}}
-</style></head>
-<body><div id="stage"><div id="cloud">
-<div class="puff p1"></div><div class="puff p2"></div><div class="puff p3"></div><div class="puff p4"></div><div class="puff p5"></div><div class="puff p6"></div><div class="puff p7"></div><div class="inner"></div>
-<div class="decor"><span class="fh h1">♥</span><span class="fh h2">♡</span><span class="fh h3">♡</span><span class="fh h4">♥</span></div>
-<div class="content"><div class="for">FOR</div><div id="to" class="to">KEIA</div><div id="msg" class="message">I'd choose you in every lifetime.</div><div id="from" class="from">— JERMAINE <span class="heart">♥</span></div></div>
-</div></div>
+*{box-sizing:border-box}
+html,body{
+  margin:0;width:100%;height:100%;overflow:hidden;
+  background:transparent!important;
+}
+#sky{
+  position:fixed;inset:0;
+  background:transparent;
+  overflow:hidden;
+  pointer-events:none;
+}
+.cloud{
+  position:absolute;
+  width:44vw;
+  min-width:430px;
+  max-width:900px;
+  height:36vh;
+  min-height:300px;
+  opacity:0;
+  transform:scale(.68);
+  filter:blur(20px);
+  transition:opacity 2s ease,transform 2.5s ease,filter 2s ease;
+  animation:drift 9s ease-in-out infinite alternate;
+}
+.cloud.show{opacity:1;transform:scale(1);filter:blur(0)}
+.cloud.leave{opacity:0;transform:scale(1.12);filter:blur(25px)}
+.puff{
+  position:absolute;border-radius:50%;
+  background:radial-gradient(circle at 45% 35%,
+    #fff 0%,#b9f5ff 10%,#53dfff 25%,#278cff 39%,
+    #7b3fe0 54%,#ff3dcc 69%,rgba(45,15,105,.25) 79%,transparent 84%);
+  filter:blur(3px)
+    drop-shadow(0 0 16px rgba(75,225,255,.95))
+    drop-shadow(0 0 28px rgba(255,55,205,.9));
+  mix-blend-mode:screen;
+  animation:breathe 4.8s ease-in-out infinite alternate;
+}
+.p1{width:35%;height:52%;left:0;top:29%}
+.p2{width:41%;height:63%;left:14%;top:10%;animation-delay:-1s}
+.p3{width:43%;height:70%;left:29%;top:0;animation-delay:-2s}
+.p4{width:41%;height:63%;right:14%;top:10%;animation-delay:-3s}
+.p5{width:35%;height:52%;right:0;top:29%;animation-delay:-4s}
+.p6{width:52%;height:43%;left:5%;bottom:2%;animation-delay:-2.5s}
+.p7{width:52%;height:43%;right:5%;bottom:2%;animation-delay:-3.5s}
+.inner{
+  position:absolute;inset:14% 5%;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(17,4,55,.91),rgba(53,10,105,.60) 49%,transparent 74%);
+  filter:blur(8px);
+}
+.content{
+  position:absolute;z-index:5;inset:11% 7%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;color:white;
+}
+.for{
+  font:900 clamp(18px,1.8vw,35px) Georgia,serif;
+  letter-spacing:.14em;
+  text-shadow:0 0 5px #fff,0 0 15px #fff,0 0 30px #ff42ca,0 0 48px #35dfff;
+}
+.to{
+  font:900 clamp(48px,5.4vw,105px) Georgia,serif;
+  line-height:.9;text-transform:uppercase;
+  -webkit-text-stroke:1px rgba(255,100,215,.9);
+  text-shadow:0 0 6px #fff,0 0 15px #fff,0 0 31px #ff42ca,0 0 58px #ff1bbb,0 0 78px #35dfff;
+  animation:textPulse 2.2s ease-in-out infinite alternate;
+  max-width:95%;overflow-wrap:anywhere;
+}
+.message{
+  max-width:94%;margin:1.4vh auto .8vh;
+  font:700 clamp(25px,3vw,58px)/1.02 "Brush Script MT","Segoe Script",cursive;
+  text-shadow:0 0 5px #fff,0 0 13px #fff,0 0 27px #ff75dc,0 0 47px #ff26bd;
+}
+.from{
+  font:800 clamp(15px,1.6vw,31px) Georgia,serif;
+  text-transform:uppercase;letter-spacing:.07em;color:#effcff;
+  text-shadow:0 0 5px #fff,0 0 14px #fff,0 0 29px #3adfff,0 0 47px #198cff;
+}
+.heart{
+  color:#ff63d3;
+  text-shadow:0 0 6px #fff,0 0 18px #ff35c3;
+  display:inline-block;animation:beat 1.4s infinite;
+}
+.decor{position:absolute;inset:0;z-index:4}
+.fh{
+  position:absolute;color:#ff79da;font-size:clamp(22px,3vw,54px);
+  text-shadow:0 0 7px #fff,0 0 20px #ff41cb,0 0 31px #44dfff;
+  animation:floatHeart 4s ease-in-out infinite;
+}
+.h1{left:7%;top:49%}.h2{right:7%;top:49%;animation-delay:-1.5s}
+
+@keyframes breathe{
+  from{transform:translate(-4px,3px) scale(.98)}
+  to{transform:translate(6px,-5px) scale(1.05)}
+}
+@keyframes textPulse{
+  from{filter:brightness(.95);transform:scale(.99)}
+  to{filter:brightness(1.35);transform:scale(1.025)}
+}
+@keyframes beat{50%{transform:scale(1.3)}}
+@keyframes floatHeart{50%{transform:translateY(-10px) scale(1.1)}}
+@keyframes drift{
+  from{margin-top:-4px}
+  to{margin-top:8px}
+}
+
+/* Six deliberately separated sky positions */
+.slot0{left:2%;top:2%}
+.slot1{right:2%;top:3%}
+.slot2{left:5%;top:34%}
+.slot3{right:5%;top:35%}
+.slot4{left:18%;bottom:-1%}
+.slot5{right:18%;bottom:-1%}
+
+/* As more clouds arrive, slightly reduce size to preserve readability */
+body.many .cloud{width:40vw;height:33vh;min-height:275px}
+</style>
+</head>
+<body>
+<div id="sky"></div>
+
 <script>
-const API="/api/cloud-message",POLL=2000,DISPLAY=45000;
-const cloud=document.getElementById("cloud"),to=document.getElementById("to"),msg=document.getElementById("msg"),from=document.getElementById("from");
-let last=null,timer=null;
-const clean=(v,f="")=>String(v??f).replace(/\s+/g," ").trim();
-function hide(){cloud.classList.remove("show");cloud.classList.add("leave");setTimeout(()=>cloud.classList.remove("leave"),2600)}
-function show(d){to.textContent=clean(d.to,"SOMEONE SPECIAL").toUpperCase();msg.textContent=clean(d.message,"Thinking of you.");from.innerHTML="";from.appendChild(document.createTextNode("— "+clean(d.from,"Anonymous")+" "));let h=document.createElement("span");h.className="heart";h.textContent="♥";from.appendChild(h);clearTimeout(timer);cloud.classList.remove("show","leave");requestAnimationFrame(()=>requestAnimationFrame(()=>cloud.classList.add("show")));timer=setTimeout(hide,DISPLAY)}
-async function poll(){try{let r=await fetch(API+"?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;let d=await r.json();if(!d.success||d.status!=="active"||d.id==null||String(d.id)===String(last))return;last=d.id;show(d)}catch(e){}}
-poll();setInterval(poll,POLL);
-</script></body></html>
+const API="/api/cloud-message";
+const POLL_MS=2000;
+const sky=document.getElementById("sky");
+const nodes=new Map();
+
+function clean(v,f=""){
+  return String(v??f).replace(/\s+/g," ").trim();
+}
+
+function makePuff(cls){
+  const d=document.createElement("div");
+  d.className="puff "+cls;
+  return d;
+}
+
+function makeCloud(data,index){
+  const cloud=document.createElement("div");
+  cloud.className="cloud slot"+index;
+  cloud.dataset.id=String(data.id);
+
+  ["p1","p2","p3","p4","p5","p6","p7"].forEach(c=>cloud.appendChild(makePuff(c)));
+
+  const inner=document.createElement("div");
+  inner.className="inner";
+  cloud.appendChild(inner);
+
+  const decor=document.createElement("div");
+  decor.className="decor";
+  const h1=document.createElement("span");
+  h1.className="fh h1"; h1.textContent="♥";
+  const h2=document.createElement("span");
+  h2.className="fh h2"; h2.textContent="♡";
+  decor.append(h1,h2);
+  cloud.appendChild(decor);
+
+  const content=document.createElement("div");
+  content.className="content";
+
+  const forEl=document.createElement("div");
+  forEl.className="for";
+  forEl.textContent="FOR";
+
+  const to=document.createElement("div");
+  to.className="to";
+  to.textContent=clean(data.to,"SOMEONE SPECIAL").toUpperCase();
+
+  const msg=document.createElement("div");
+  msg.className="message";
+  msg.textContent=clean(data.message,"Thinking of you.");
+
+  const from=document.createElement("div");
+  from.className="from";
+  from.appendChild(document.createTextNode("— "+clean(data.from,"Anonymous")+" "));
+  const heart=document.createElement("span");
+  heart.className="heart"; heart.textContent="♥";
+  from.appendChild(heart);
+
+  content.append(forEl,to,msg,from);
+  cloud.appendChild(content);
+  sky.appendChild(cloud);
+
+  requestAnimationFrame(()=>requestAnimationFrame(()=>cloud.classList.add("show")));
+  return cloud;
+}
+
+function removeCloud(id,node){
+  if(!node)return;
+  node.classList.remove("show");
+  node.classList.add("leave");
+  nodes.delete(String(id));
+  setTimeout(()=>node.remove(),2600);
+}
+
+function reposition(messages){
+  messages.forEach((m,i)=>{
+    const node=nodes.get(String(m.id));
+    if(!node)return;
+    for(let n=0;n<6;n++) node.classList.remove("slot"+n);
+    node.classList.add("slot"+Math.min(i,5));
+  });
+  document.body.classList.toggle("many",messages.length>=5);
+}
+
+function render(messages){
+  const activeIds=new Set(messages.map(m=>String(m.id)));
+
+  for(const [id,node] of nodes){
+    if(!activeIds.has(id)) removeCloud(id,node);
+  }
+
+  messages.slice(0,6).forEach((m,i)=>{
+    const id=String(m.id);
+    if(!nodes.has(id)){
+      nodes.set(id,makeCloud(m,i));
+    }
+  });
+
+  reposition(messages.slice(0,6));
+}
+
+async function poll(){
+  try{
+    const r=await fetch(API+"?t="+Date.now(),{cache:"no-store"});
+    if(!r.ok)return;
+    const d=await r.json();
+
+    // New multi-cloud server response
+    if(Array.isArray(d.messages)){
+      render(d.messages);
+      return;
+    }
+
+    // Temporary backward compatibility with old single-cloud server
+    if(d.success && d.status==="active" && d.id!=null){
+      render([d]);
+      return;
+    }
+
+    render([]);
+  }catch(e){}
+}
+
+poll();
+setInterval(poll,POLL_MS);
+</script>
+</body>
+</html>
