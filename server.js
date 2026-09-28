@@ -2,6 +2,7 @@
     const http = require("http");
     const https = require("https");
     const path = require("path");
+    const fs = require("fs");
 
     const app = express();
 
@@ -124,11 +125,83 @@ function getOfficialVideoOverride(artist, song) {
         updated: 0
     };
 
-    // YouTube search protection. If Google returns HTTP 429, pause new
-    // API searches so the TVs cannot repeatedly hammer the daily quota.
-    // Official video overrides still work because they are checked first.
+    // ======================================================
+    // PERSISTENT YOUTUBE VIDEO CACHE + QUOTA PROTECTION
+    // ======================================================
+    // search.list costs 100 quota units. Slow Tide therefore searches
+    // YouTube only for a song that is not already known. Results are
+    // stored on disk when the host filesystem permits it, and always
+    // remain cached in memory for the lifetime of this server process.
+    const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
+    const persistentVideoCache = new Map();
+    const videoSearchesInProgress = new Map();
+
+    // Standard YouTube Data API projects commonly have 10,000 units/day.
+    // Leave a safety margin and never allow this app to spend more than
+    // 8,000 units (80 search.list calls) in one UTC day.
+    const YOUTUBE_SEARCH_COST = 100;
+    const YOUTUBE_DAILY_APP_BUDGET = 8000;
+    let youtubeQuotaDay = new Date().toISOString().slice(0, 10);
+    let youtubeQuotaSpent = 0;
+
+    // If Google returns 429 or quotaExceeded, stop ALL new searches until
+    // the next UTC day. Cached/override videos continue to work.
     let youtubeSearchBackoffUntil = 0;
-    const YOUTUBE_429_BACKOFF_MS = 6 * 60 * 60 * 1000;
+
+    function youtubeCacheKey(artist, song) {
+        const cleanArtist = normalizeVideoText(artist || "");
+        const cleanSong = normalizeVideoText(
+            removeFeaturedArtists(removeVersionInfo(song || ""))
+        );
+        return cleanArtist + "|" + cleanSong;
+    }
+
+    function resetYoutubeDailyBudgetIfNeeded() {
+        const today = new Date().toISOString().slice(0, 10);
+        if (today !== youtubeQuotaDay) {
+            youtubeQuotaDay = today;
+            youtubeQuotaSpent = 0;
+            youtubeSearchBackoffUntil = 0;
+        }
+    }
+
+    function nextUtcDayTimestamp() {
+        const now = new Date();
+        return Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate() + 1,
+            0, 5, 0, 0
+        );
+    }
+
+    function loadPersistentVideoCache() {
+        try {
+            if (!fs.existsSync(VIDEO_CACHE_FILE)) return;
+            const parsed = JSON.parse(fs.readFileSync(VIDEO_CACHE_FILE, "utf8"));
+            for (const [key, value] of Object.entries(parsed || {})) {
+                if (value && typeof value === "object") {
+                    persistentVideoCache.set(key, value);
+                }
+            }
+            console.log("YOUTUBE CACHE LOADED:", persistentVideoCache.size, "songs");
+        } catch (error) {
+            console.log("YOUTUBE CACHE LOAD WARNING:", error.message);
+        }
+    }
+
+    function savePersistentVideoCache() {
+        try {
+            const data = Object.fromEntries(persistentVideoCache.entries());
+            fs.writeFileSync(VIDEO_CACHE_FILE, JSON.stringify(data, null, 2), "utf8");
+        } catch (error) {
+            // Render filesystems may be ephemeral. Memory caching still protects
+            // quota for the current process even when disk persistence is unavailable.
+            console.log("YOUTUBE CACHE SAVE WARNING:", error.message);
+        }
+    }
+
+    loadPersistentVideoCache();
 
 
 
@@ -2886,23 +2959,46 @@ function getOfficialVideoOverride(artist, song) {
     }
 
     async function searchYouTubeMusicVideo(artist, song) {
-  const overrideVideoId = getOfficialVideoOverride(artist, song);
-  if (overrideVideoId) {
-    console.log("YOUTUBE OFFICIAL OVERRIDE:", artist, "-", song, "=>", overrideVideoId);
-    return {
-      videoId: overrideVideoId,
-      videoTitle: `${artist} - ${song} (Official Music Video)`,
-      channelTitle: "Official override",
-      thumbnail: `https://i.ytimg.com/vi/${overrideVideoId}/hqdefault.jpg`,
-      query: "official override",
-      score: 10000,
-      override: true
-    };
-  }
+        const overrideVideoId = getOfficialVideoOverride(artist, song);
+        if (overrideVideoId) {
+            console.log("YOUTUBE OFFICIAL OVERRIDE:", artist, "-", song, "=>", overrideVideoId);
+            return {
+                videoId: overrideVideoId,
+                videoTitle: `${artist} - ${song} (Official Music Video)`,
+                channelTitle: "Official override",
+                thumbnail: `https://i.ytimg.com/vi/${overrideVideoId}/hqdefault.jpg`,
+                query: "official override",
+                score: 10000,
+                override: true
+            };
+        }
+
+        const cacheKey = youtubeCacheKey(artist, song);
+
+        // 1) Reuse any song we have already looked up.
+        if (persistentVideoCache.has(cacheKey)) {
+            const cached = persistentVideoCache.get(cacheKey);
+            console.log("YOUTUBE PERMANENT CACHE HIT:", cacheKey);
+            return cached.found ? cached.result : null;
+        }
+
+        // 2) If another TV/browser is already searching this exact song,
+        // wait for that same Promise instead of spending another 100 units.
+        if (videoSearchesInProgress.has(cacheKey)) {
+            console.log("YOUTUBE SEARCH ALREADY IN PROGRESS:", cacheKey);
+            return await videoSearchesInProgress.get(cacheKey);
+        }
+
+        resetYoutubeDailyBudgetIfNeeded();
 
         if (Date.now() < youtubeSearchBackoffUntil) {
-            const retryMinutes = Math.max(1, Math.ceil((youtubeSearchBackoffUntil - Date.now()) / 60000));
-            const error = new Error(`YouTube search temporarily paused after quota/rate limit. Retry in about ${retryMinutes} minute(s).`);
+            const retryMinutes = Math.max(
+                1,
+                Math.ceil((youtubeSearchBackoffUntil - Date.now()) / 60000)
+            );
+            const error = new Error(
+                `YouTube search paused to protect quota. Retry in about ${retryMinutes} minute(s).`
+            );
             error.code = "YOUTUBE_BACKOFF";
             throw error;
         }
@@ -2911,72 +3007,141 @@ function getOfficialVideoOverride(artist, song) {
             throw new Error("YOUTUBE_API_KEY is not configured");
         }
 
-        const cleanSong = removeVersionInfo(song);
-        const noFeature = removeFeaturedArtists(cleanSong);
-
-        const query = [
-            artist || "",
-            noFeature || cleanSong || song || "",
-            "official music video"
-        ].filter(Boolean).join(" ").trim();
-
-        if (!query) return null;
-
-        const url =
-            "https://www.googleapis.com/youtube/v3/search" +
-            "?part=snippet" +
-            "&type=video" +
-            "&maxResults=10" +
-            "&videoEmbeddable=true" +
-            "&videoSyndicated=true" +
-            "&safeSearch=moderate" +
-            "&regionCode=US" +
-            "&q=" + encodeURIComponent(query) +
-            "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
-
-        console.log("YOUTUBE VIDEO SEARCH:", query);
-
-        const text = await fetchText(url, 10000);
-        const data = JSON.parse(text);
-
-        if (!data || !Array.isArray(data.items) || data.items.length === 0) {
-            return null;
+        if (youtubeQuotaSpent + YOUTUBE_SEARCH_COST > YOUTUBE_DAILY_APP_BUDGET) {
+            youtubeSearchBackoffUntil = nextUtcDayTimestamp();
+            const error = new Error(
+                "Slow Tide YouTube daily safety budget reached. Cached videos will continue playing."
+            );
+            error.code = "YOUTUBE_DAILY_BUDGET";
+            throw error;
         }
 
-        let best = null;
-        let bestScore = -1000;
+        const searchPromise = (async () => {
+            const cleanSong = removeVersionInfo(song);
+            const noFeature = removeFeaturedArtists(cleanSong);
 
-        for (const item of data.items) {
-            if (!item.id || !item.id.videoId) continue;
+            const query = [
+                artist || "",
+                noFeature || cleanSong || song || "",
+                "official music video"
+            ].filter(Boolean).join(" ").trim();
 
-            const score = scoreYouTubeResult(item, artist, song);
+            if (!query) return null;
 
-            if (score > bestScore) {
-                bestScore = score;
-                best = item;
+            const url =
+                "https://www.googleapis.com/youtube/v3/search" +
+                "?part=snippet" +
+                "&type=video" +
+                "&maxResults=10" +
+                "&videoEmbeddable=true" +
+                "&videoSyndicated=true" +
+                "&safeSearch=moderate" +
+                "&regionCode=US" +
+                "&q=" + encodeURIComponent(query) +
+                "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
+
+            // Count before sending so simultaneous songs can never exceed
+            // the application's own daily safety budget.
+            youtubeQuotaSpent += YOUTUBE_SEARCH_COST;
+            console.log(
+                "YOUTUBE VIDEO SEARCH:",
+                query,
+                "| APP QUOTA:",
+                youtubeQuotaSpent + "/" + YOUTUBE_DAILY_APP_BUDGET
+            );
+
+            try {
+                const text = await fetchText(url, 10000);
+                const data = JSON.parse(text);
+
+                if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+                    persistentVideoCache.set(cacheKey, {
+                        found: false,
+                        result: null,
+                        query: query,
+                        cachedAt: Date.now()
+                    });
+                    savePersistentVideoCache();
+                    return null;
+                }
+
+                let best = null;
+                let bestScore = -1000;
+
+                for (const item of data.items) {
+                    if (!item.id || !item.id.videoId) continue;
+                    const score = scoreYouTubeResult(item, artist, song);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        best = item;
+                    }
+                }
+
+                if (!best) {
+                    persistentVideoCache.set(cacheKey, {
+                        found: false,
+                        result: null,
+                        query: query,
+                        cachedAt: Date.now()
+                    });
+                    savePersistentVideoCache();
+                    return null;
+                }
+
+                const thumbs = best.snippet.thumbnails || {};
+                const thumb = thumbs.high || thumbs.medium || thumbs.default || null;
+
+                const result = {
+                    videoId: best.id.videoId,
+                    videoTitle: decodeText(best.snippet.title),
+                    channelTitle: decodeText(best.snippet.channelTitle),
+                    thumbnail: thumb ? thumb.url : null,
+                    score: bestScore,
+                    query: query
+                };
+
+                persistentVideoCache.set(cacheKey, {
+                    found: true,
+                    result: result,
+                    cachedAt: Date.now()
+                });
+                savePersistentVideoCache();
+
+                console.log(
+                    "YOUTUBE VIDEO MATCH:",
+                    best.snippet.title,
+                    "SCORE:",
+                    bestScore,
+                    "| SAVED:",
+                    cacheKey
+                );
+
+                return result;
+            } catch (error) {
+                const message = String(error.message || "");
+                const quotaProblem =
+                    /HTTP\s*(403|429)/i.test(message) ||
+                    /quota/i.test(message);
+
+                if (quotaProblem) {
+                    youtubeSearchBackoffUntil = nextUtcDayTimestamp();
+                    console.log(
+                        "YOUTUBE QUOTA PROTECTION UNTIL:",
+                        new Date(youtubeSearchBackoffUntil).toISOString()
+                    );
+                }
+
+                throw error;
             }
+        })();
+
+        videoSearchesInProgress.set(cacheKey, searchPromise);
+
+        try {
+            return await searchPromise;
+        } finally {
+            videoSearchesInProgress.delete(cacheKey);
         }
-
-        if (!best) return null;
-
-        console.log(
-            "YOUTUBE VIDEO MATCH:",
-            best.snippet.title,
-            "SCORE:",
-            bestScore
-        );
-
-        const thumbs = best.snippet.thumbnails || {};
-        const thumb = thumbs.high || thumbs.medium || thumbs.default || null;
-
-        return {
-            videoId: best.id.videoId,
-            videoTitle: decodeText(best.snippet.title),
-            channelTitle: decodeText(best.snippet.channelTitle),
-            thumbnail: thumb ? thumb.url : null,
-            score: bestScore,
-            query: query
-        };
     }
 
     async function getCurrentMusicVideo() {
@@ -3066,14 +3231,15 @@ function getOfficialVideoOverride(artist, song) {
         } catch (error) {
             console.log("YOUTUBE VIDEO ERROR:", error.message);
 
-            const is429 = /HTTP\s*429/i.test(String(error.message || ""));
+            const errorCode = error.code || "";
+            const isQuotaWait =
+                errorCode === "YOUTUBE_BACKOFF" ||
+                errorCode === "YOUTUBE_DAILY_BUDGET" ||
+                /HTTP\s*(403|429)/i.test(String(error.message || "")) ||
+                /quota/i.test(String(error.message || ""));
 
-            if (is429) {
-                youtubeSearchBackoffUntil = Date.now() + YOUTUBE_429_BACKOFF_MS;
-                console.log(
-                    "YOUTUBE SEARCH BACKOFF ENABLED UNTIL:",
-                    new Date(youtubeSearchBackoffUntil).toISOString()
-                );
+            if (isQuotaWait && Date.now() >= youtubeSearchBackoffUntil) {
+                youtubeSearchBackoffUntil = nextUtcDayTimestamp();
             }
 
             // IMPORTANT: cache failures for this song too. video.html polls
@@ -3081,16 +3247,16 @@ function getOfficialVideoOverride(artist, song) {
             // another YouTube search request and burn quota.
             const errorResult = {
                 success: false,
-                status: is429 ? "quota_wait" : "error",
+                status: isQuotaWait ? "quota_wait" : "error",
                 title: title,
                 artist: info.artist,
                 song: info.song,
-                message: is429
-                    ? "YouTube search quota is temporarily unavailable. Slow Tide will wait before searching again."
+                message: isQuotaWait
+                    ? "YouTube search is paused to protect quota. Cached videos will continue working."
                     : error.message,
                 source: "YouTube",
-                retryAfterSeconds: is429
-                    ? Math.ceil(YOUTUBE_429_BACKOFF_MS / 1000)
+                retryAfterSeconds: isQuotaWait
+                    ? Math.max(1, Math.ceil((youtubeSearchBackoffUntil - Date.now()) / 1000))
                     : null
             };
 
