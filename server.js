@@ -91,25 +91,29 @@ app.get("/cloud.html", (req, res) => {
 
 
     // ======================================================
-    // EXPERIMENTAL LIVE-AUDIO SONG START DETECTOR
+    // LIVE-AUDIO SONG START DETECTOR v2
     // ======================================================
-    // Metadata still identifies WHICH song is next.
-    // The live stream audio is sampled with ffmpeg to decide WHEN the
-    // transition actually reaches the stream. If ffmpeg is unavailable,
-    // Slow Tide safely falls back to the existing metadata clock.
+    // Keep one continuous ffmpeg connection open around a metadata change.
+    // This avoids reconnecting to the radio for every sample (which caused
+    // identical 0.000 fingerprints). Metadata identifies the next song;
+    // the live PCM stream determines when its audio actually changes.
     const AUDIO_SYNC_ENABLED = true;
-    const AUDIO_SYNC_SAMPLE_SECONDS = 1.0;
     const AUDIO_SYNC_MAX_WAIT_SECONDS = 45;
-    const AUDIO_SYNC_CHANGE_THRESHOLD = 0.16;
+    const AUDIO_SYNC_WINDOW_MS = 500;
+    const AUDIO_SYNC_CHANGE_THRESHOLD = 0.30;
+    const AUDIO_SYNC_CONFIRM_WINDOWS = 2;
 
     let audioSyncToken = 0;
 
-    function captureAudioFingerprint(streamUrl, seconds = AUDIO_SYNC_SAMPLE_SECONDS) {
-        return new Promise((resolve, reject) => {
+    function alignClockToLiveAudio(streamUrl, generation, metadataSeenAt) {
+        if (!AUDIO_SYNC_ENABLED) return Promise.resolve();
+
+        const myToken = ++audioSyncToken;
+
+        return new Promise(resolve => {
             const args = [
                 "-hide_banner", "-loglevel", "error",
                 "-i", streamUrl,
-                "-t", String(seconds),
                 "-vn",
                 "-ac", "1",
                 "-ar", "8000",
@@ -118,117 +122,132 @@ app.get("/cloud.html", (req, res) => {
             ];
 
             const ff = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "ignore"] });
-            const chunks = [];
-            let total = 0;
-            const timeout = setTimeout(() => {
+            let pcm = Buffer.alloc(0);
+            let baseline = null;
+            let confirmCount = 0;
+            let finished = false;
+
+            // 8 kHz mono, signed 16-bit = 16,000 bytes/sec.
+            const windowBytes = Math.floor(16000 * (AUDIO_SYNC_WINDOW_MS / 1000));
+
+            function finish(message) {
+                if (finished) return;
+                finished = true;
+                clearTimeout(timeout);
                 try { ff.kill("SIGKILL"); } catch (_) {}
-                reject(new Error("audio fingerprint timeout"));
-            }, 7000);
+                if (message) console.log(message);
+                resolve();
+            }
 
-            ff.stdout.on("data", chunk => {
-                chunks.push(chunk);
-                total += chunk.length;
-                if (total > 32000) {
-                    try { ff.kill("SIGKILL"); } catch (_) {}
-                }
-            });
-
-            ff.on("error", error => {
-                clearTimeout(timeout);
-                reject(error);
-            });
-
-            ff.on("close", () => {
-                clearTimeout(timeout);
-                const b = Buffer.concat(chunks);
-                if (b.length < 4000) return reject(new Error("not enough audio data"));
-
-                // Compact amplitude envelope. This is not speech recognition;
-                // it detects a substantial change in the live audio texture.
+            function fingerprint(buffer) {
+                // Compare both amplitude and zero-crossing behavior across 32 bins.
                 const bins = 32;
-                const samples = Math.floor(b.length / 2);
-                const perBin = Math.max(1, Math.floor(samples / bins));
+                const samples = Math.floor(buffer.length / 2);
+                const perBin = Math.max(2, Math.floor(samples / bins));
                 const fp = [];
 
                 for (let bin = 0; bin < bins; bin++) {
-                    let sum = 0, count = 0;
                     const start = bin * perBin;
                     const end = Math.min(samples, start + perBin);
+                    let absSum = 0;
+                    let crossings = 0;
+                    let previous = null;
+                    let count = 0;
+
                     for (let i = start; i < end; i++) {
-                        const v = b.readInt16LE(i * 2) / 32768;
-                        sum += Math.abs(v);
+                        const v = buffer.readInt16LE(i * 2) / 32768;
+                        absSum += Math.abs(v);
+                        if (previous !== null && ((previous < 0 && v >= 0) || (previous >= 0 && v < 0))) {
+                            crossings++;
+                        }
+                        previous = v;
                         count++;
                     }
-                    fp.push(count ? sum / count : 0);
+
+                    fp.push(count ? absSum / count : 0);
+                    fp.push(count > 1 ? crossings / (count - 1) : 0);
                 }
-                resolve(fp);
+                return fp;
+            }
+
+            function distance(a, b) {
+                if (!a || !b || a.length !== b.length) return 1;
+                let diff = 0;
+                let base = 0;
+                for (let i = 0; i < a.length; i++) {
+                    diff += Math.abs(a[i] - b[i]);
+                    base += Math.max(Math.abs(a[i]), Math.abs(b[i]), 0.01);
+                }
+                return diff / base;
+            }
+
+            const timeout = setTimeout(() => {
+                finish("AUDIO SYNC v2: no reliable transition found; metadata clock retained.");
+            }, AUDIO_SYNC_MAX_WAIT_SECONDS * 1000);
+
+            ff.on("error", error => {
+                finish("AUDIO SYNC v2 FALLBACK: ffmpeg unavailable: " + error.message);
             });
-        });
-    }
 
-    function fingerprintDistance(a, b) {
-        if (!a || !b || a.length !== b.length) return 1;
-        let diff = 0, base = 0;
-        for (let i = 0; i < a.length; i++) {
-            diff += Math.abs(a[i] - b[i]);
-            base += Math.max(a[i], b[i], 0.01);
-        }
-        return diff / base;
-    }
-
-    async function alignClockToLiveAudio(streamUrl, generation, metadataSeenAt) {
-        if (!AUDIO_SYNC_ENABLED) return;
-
-        const myToken = ++audioSyncToken;
-        let baseline;
-
-        try {
-            baseline = await captureAudioFingerprint(streamUrl);
-        } catch (error) {
-            console.log("AUDIO SYNC FALLBACK: ffmpeg unavailable:", error.message);
-            return;
-        }
-
-        const deadline = Date.now() + AUDIO_SYNC_MAX_WAIT_SECONDS * 1000;
-
-        while (
-            Date.now() < deadline &&
-            myToken === audioSyncToken &&
-            generation === songGeneration &&
-            streamUrl === currentStream
-        ) {
-            await new Promise(resolve => setTimeout(resolve, 700));
-
-            try {
-                const sample = await captureAudioFingerprint(streamUrl);
-                const distance = fingerprintDistance(baseline, sample);
-
-                console.log("AUDIO SYNC CHANGE SCORE:", distance.toFixed(3));
-
-                if (distance >= AUDIO_SYNC_CHANGE_THRESHOLD) {
-                    // Anchor to the center of the sample window.
-                    songStartedAt = Date.now() - (AUDIO_SYNC_SAMPLE_SECONDS * 500);
-                    autoSyncMethod = "live-audio-transition";
-
-                    console.log(
-                        "AUDIO SYNC LOCKED:",
-                        new Date(songStartedAt).toISOString(),
-                        "| metadata lead ms:",
-                        songStartedAt - metadataSeenAt
-                    );
+            ff.stdout.on("data", chunk => {
+                if (
+                    finished ||
+                    myToken !== audioSyncToken ||
+                    generation !== songGeneration ||
+                    streamUrl !== currentStream
+                ) {
+                    finish();
                     return;
                 }
 
-                // Slowly follow normal within-song dynamics so only a real
-                // transition stands out instead of one loud beat.
-                baseline = baseline.map((v, i) => v * 0.85 + sample[i] * 0.15);
-            } catch (error) {
-                console.log("AUDIO SYNC SAMPLE WARNING:", error.message);
-                return;
-            }
-        }
+                pcm = Buffer.concat([pcm, chunk]);
 
-        console.log("AUDIO SYNC: no reliable transition found; metadata clock retained.");
+                while (pcm.length >= windowBytes && !finished) {
+                    const window = pcm.subarray(0, windowBytes);
+                    pcm = pcm.subarray(windowBytes);
+                    const fp = fingerprint(window);
+
+                    if (!baseline) {
+                        baseline = fp;
+                        console.log("AUDIO SYNC v2: continuous stream baseline captured.");
+                        continue;
+                    }
+
+                    const score = distance(baseline, fp);
+                    console.log("AUDIO SYNC v2 CHANGE SCORE:", score.toFixed(3));
+
+                    if (score >= AUDIO_SYNC_CHANGE_THRESHOLD) {
+                        confirmCount++;
+                    } else {
+                        confirmCount = 0;
+                    }
+
+                    if (confirmCount >= AUDIO_SYNC_CONFIRM_WINDOWS) {
+                        // The center of the confirmed 500 ms window is our
+                        // best estimate of when the new audio reached Render.
+                        songStartedAt = Date.now() - Math.floor(AUDIO_SYNC_WINDOW_MS / 2);
+                        autoSyncMethod = "live-audio-transition-v2";
+
+                        console.log(
+                            "AUDIO SYNC v2 LOCKED:",
+                            new Date(songStartedAt).toISOString(),
+                            "| metadata lead ms:",
+                            songStartedAt - metadataSeenAt
+                        );
+
+                        finish();
+                        return;
+                    }
+
+                    // Adapt slowly so normal musical dynamics don't trigger a lock.
+                    baseline = baseline.map((v, i) => v * 0.97 + fp[i] * 0.03);
+                }
+            });
+
+            ff.on("close", () => {
+                if (!finished) finish("AUDIO SYNC v2: stream process ended before lock.");
+            });
+        });
     }
 
     // ======================================================
@@ -2053,7 +2072,7 @@ function getOfficialVideoOverride(artist, song) {
                 });
 
                 console.log(
-                    "LYRICS SYNC: metadata title change — audio delay",
+                    "LYRICS SYNC v2: metadata title change — waiting for continuous audio transition",
                     MASTER_SYNC_COMPENSATION_SECONDS,
                     "seconds"
                 );
