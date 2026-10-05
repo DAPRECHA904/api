@@ -84,6 +84,9 @@ app.get("/cloud.html", (req, res) => {
     // Adjust only if repeated multi-song testing shows a consistent offset.
     const MASTER_SYNC_COMPENSATION_SECONDS = 22;
 
+    // Lyrics TV fine-tuning offset. Allows negative elapsed time before lyric zero.
+    const LYRICS_SYNC_OFFSET_SECONDS = -3;
+
 
     // ======================================================
     // LYRICS CACHE
@@ -3399,10 +3402,11 @@ function getOfficialVideoOverride(artist, song) {
 
                 // Convenient current position in the song
                 songElapsedSeconds:
-                    Math.max(
-                        0,
-                        (Date.now() - songStartedAt) / 1000
-                    ),
+                    ((Date.now() - songStartedAt) / 1000) +
+                    LYRICS_SYNC_OFFSET_SECONDS,
+
+                lyricsSyncOffsetSeconds:
+                    LYRICS_SYNC_OFFSET_SECONDS,
 
                 syncCompensationSeconds:
                     MASTER_SYNC_COMPENSATION_SECONDS,
