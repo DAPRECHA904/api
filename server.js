@@ -79,6 +79,11 @@ app.get("/cloud.html", (req, res) => {
     // Async lyric lookups may only publish results from the current generation.
     let songGeneration = 0;
 
+    // Radio/lyrics synchronization compensation.
+    // The station audio heard in Second Life is about 30 seconds ahead of
+    // the timestamp we previously assigned when metadata was detected.
+    const MASTER_SYNC_COMPENSATION_SECONDS = 30;
+
 
     // ======================================================
     // LYRICS CACHE
@@ -1880,7 +1885,7 @@ function getOfficialVideoOverride(artist, song) {
                 // This prevents a TV loaded in the middle of a song
                 // from starting the lyrics back at the beginning.
                 songStartedAt =
-                    Date.now();
+                    Date.now() - (MASTER_SYNC_COMPENSATION_SECONDS * 1000);
 
 
                 // Clear lyrics cache
@@ -2048,6 +2053,13 @@ function getOfficialVideoOverride(artist, song) {
                 /\s*\[(?:radio edit|radio version|album version|clean|explicit)\]\s*/gi,
                 " "
             )
+
+            // Common station/video metadata noise that hurts LRCLIB matching
+            .replace(/\s*[\(\[][^)\]]*(?:official|visualizer|lyric video|lyrics video|audio only|hd|4k)[^)\]]*[\)\]]\s*/gi, " ")
+            .replace(/\s+(?:official\s+)?(?:music\s+)?video\s*$/gi, "")
+            .replace(/\s+(?:official\s+)?audio\s*$/gi, "")
+            .replace(/\s+(?:lyrics?|visualizer)\s*$/gi, "")
+            .replace(/\s+\|\s+.*$/g, "")
 
             .replace(
                 /\s+/g,
@@ -3391,6 +3403,9 @@ function getOfficialVideoOverride(artist, song) {
                         0,
                         (Date.now() - songStartedAt) / 1000
                     ),
+
+                syncCompensationSeconds:
+                    MASTER_SYNC_COMPENSATION_SECONDS,
 
                 updated:
                     new Date()
