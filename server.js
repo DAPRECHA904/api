@@ -80,9 +80,9 @@ app.get("/cloud.html", (req, res) => {
     let songGeneration = 0;
 
     // Radio/lyrics synchronization compensation.
-    // The station audio heard in Second Life is about 30 seconds ahead of
-    // the timestamp we previously assigned when metadata was detected.
-    const MASTER_SYNC_COMPENSATION_SECONDS = 30;
+    // Calibrated for the current Slow Tide radio path.
+    // Adjust only if repeated multi-song testing shows a consistent offset.
+    const MASTER_SYNC_COMPENSATION_SECONDS = 22;
 
 
     // ======================================================
