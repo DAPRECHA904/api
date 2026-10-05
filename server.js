@@ -3894,6 +3894,77 @@ h1,h2{color:#fff} a{color:#8fd8ff}
 </div></body></html>`);
 });
 
+
+// ============================================================
+// SLOW TIDE - TERMS OF SERVICE
+// Public compliance page. Does not affect the TV or karaoke.
+// ============================================================
+app.get("/terms", (req, res) => {
+  res.type("html").send(`<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Slow Tide Terms of Service</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:850px;margin:40px auto;padding:0 22px;line-height:1.65;background:#06101d;color:#f5f7fb}
+h1,h2{color:#fff}a{color:#75dcff}.card{background:#0d2033;padding:28px;border-radius:16px}
+</style></head><body><div class="card">
+<h1>Slow Tide Terms of Service</h1>
+<p>Last updated: October 5, 2026</p>
+<p>Slow Tide is a music entertainment experience presented by Da Obsidian Court. By accessing Slow Tide web features, you agree to use them only for their intended entertainment purpose.</p>
+<h2>YouTube Services</h2>
+<p>Slow Tide may use YouTube API Services to locate and display relevant YouTube videos. Use of YouTube features is subject to the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube Terms of Service</a> and applicable Google policies.</p>
+<h2>Availability</h2>
+<p>Features may be changed, interrupted, limited, or unavailable due to third-party services, API limits, maintenance, or technical conditions.</p>
+<h2>Content</h2>
+<p>YouTube videos remain hosted and delivered by YouTube. Slow Tide does not claim ownership of third-party YouTube content.</p>
+<h2>Privacy</h2>
+<p>See the <a href="/privacy">Slow Tide Privacy Policy</a> for information about data practices and use of YouTube API Services.</p>
+<h2>Contact</h2>
+<p>Questions may be directed to the operator of Slow Tide / Da Obsidian Court through the venue's normal contact channels.</p>
+</div></body></html>`);
+});
+
+// ============================================================
+// SLOW TIDE - YOUTUBE API COMPLIANCE / REVIEW PAGE
+// Separate from the in-world video TV.
+// ============================================================
+app.get("/youtube-compliance", (req, res) => {
+  res.type("html").send(`<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Slow Tide - YouTube API Integration</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:linear-gradient(135deg,#08051a,#061d31);color:#f7fbff}
+main{max-width:1050px;margin:auto;padding:42px 24px 60px}.brand{text-align:center;margin-bottom:28px}
+h1{font-size:54px;margin:0;color:#fff;text-shadow:0 0 20px #ff4aa2}h2{margin-top:0}.tag{color:#79eaff;letter-spacing:3px}
+.card{background:rgba(8,20,38,.92);border:1px solid #1c6c87;border-radius:18px;padding:26px;margin-top:22px}
+.player{position:relative;padding-top:56.25%;overflow:hidden;border-radius:14px;background:#000}
+.player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.links{text-align:center;margin-top:28px;font-size:18px}.links a{color:#86eaff;margin:0 12px}
+.note{color:#cbd9e6;line-height:1.65}.yt{font-weight:bold;color:#fff}
+</style></head><body><main>
+<div class="brand"><h1>Slow Tide</h1><p class="tag">MUSIC • VIDEO • R&amp;B EXPERIENCE</p></div>
+<div class="card">
+<h2>YouTube API Integration</h2>
+<p class="note">Slow Tide uses the YouTube Data API to search for an appropriate YouTube music video corresponding to the song currently playing through the Slow Tide radio experience. Videos are displayed using the YouTube embedded player. Slow Tide does not download or redistribute YouTube videos.</p>
+</div>
+<div class="card">
+<h2 class="yt">YouTube Embedded Player</h2>
+<div class="player">
+<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0" title="YouTube video player" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+</div>
+<p class="note">The embedded player above demonstrates the same YouTube player technology used by the Slow Tide music-video feature.</p>
+</div>
+<div class="links">
+<a href="/privacy">Privacy Policy</a> |
+<a href="/terms">Terms of Service</a> |
+<a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube Terms of Service</a> |
+<a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>
+</div>
+</main></body></html>`);
+});
+
+
     app.listen(
         PORT,
         () => {
