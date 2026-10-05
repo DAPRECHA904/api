@@ -60,7 +60,7 @@ app.get("/cloud.html", (req, res) => {
     // ======================================================
 
     let currentStream =
-        "http://mogullustradio.shoutcastnet.com:30800/stream";
+        "http://KhaoticLove.filehostia.com:8727";
 
     let currentTitle =
         "Connecting to Slow Tide...";
