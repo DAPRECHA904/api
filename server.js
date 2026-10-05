@@ -85,7 +85,7 @@ app.get("/cloud.html", (req, res) => {
     // Radio/lyrics synchronization compensation.
     // Calibrated for the current Slow Tide radio path.
     // Adjust only if repeated multi-song testing shows a consistent offset.
-    const MASTER_SYNC_COMPENSATION_SECONDS = 22;
+    const MASTER_SYNC_COMPENSATION_SECONDS = 7;
 
 
     // ======================================================
