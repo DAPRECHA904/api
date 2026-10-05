@@ -75,6 +75,10 @@ app.get("/cloud.html", (req, res) => {
     // This resets whenever the server detects a new song.
     let songStartedAt = Date.now();
 
+    // Changes whenever the active station or song changes.
+    // Async lyric lookups may only publish results from the current generation.
+    let songGeneration = 0;
+
 
     // ======================================================
     // LYRICS CACHE
@@ -1862,6 +1866,9 @@ function getOfficialVideoOverride(artist, song) {
                 currentTitle
             ) {
 
+                // Invalidate async lyric/video work from the previous song.
+                songGeneration++;
+
                 currentTitle =
                     cleaned;
 
@@ -2619,6 +2626,12 @@ function getOfficialVideoOverride(artist, song) {
         const title =
             currentTitle;
 
+        const stream =
+            currentStream;
+
+        const generation =
+            songGeneration;
+
 
         if (
             !title ||
@@ -2694,6 +2707,30 @@ function getOfficialVideoOverride(artist, song) {
                     info.artist,
                     info.song
                 );
+
+
+            // The station/song may have changed while LRCLIB was searching.
+            // Never let an old request repopulate the cache or reach a TV.
+            if (
+                generation !== songGeneration ||
+                stream !== currentStream ||
+                title !== currentTitle
+            ) {
+
+                console.log(
+                    "DISCARDING OLD LYRICS RESULT:",
+                    title,
+                    "| CURRENT:",
+                    currentTitle
+                );
+
+                return {
+                    success: false,
+                    status: "changed",
+                    title: currentTitle,
+                    message: "Song or station changed while lyrics were loading."
+                };
+            }
 
 
             // --------------------------------------------------
@@ -3495,6 +3532,9 @@ function getOfficialVideoOverride(artist, song) {
 
             if (changed) {
 
+                // Immediately invalidate all async work from the old station.
+                songGeneration++;
+
                 currentTitle =
                     "Connecting to new station...";
 
@@ -3506,6 +3546,12 @@ function getOfficialVideoOverride(artist, song) {
 
 
                 lyricsCache = {
+                    title: null,
+                    result: null,
+                    updated: 0
+                };
+
+                videoCache = {
                     title: null,
                     result: null,
                     updated: 0
