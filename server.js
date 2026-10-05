@@ -97,7 +97,7 @@ app.get("/cloud.html", (req, res) => {
     // This avoids reconnecting to the radio for every sample (which caused
     // identical 0.000 fingerprints). Metadata identifies the next song;
     // the live PCM stream determines when its audio actually changes.
-    const AUDIO_SYNC_ENABLED = true;
+    const AUDIO_SYNC_ENABLED = false;
     const AUDIO_SYNC_MAX_WAIT_SECONDS = 45;
     const AUDIO_SYNC_WINDOW_MS = 500;
     const AUDIO_SYNC_CHANGE_THRESHOLD = 0.30;
@@ -2058,11 +2058,13 @@ function getOfficialVideoOverride(artist, song) {
 
                 songStartedAt =
                     metadataSeenAt + (MASTER_SYNC_COMPENSATION_SECONDS * 1000);
-                autoSyncMethod = "metadata-title-change-awaiting-audio";
+                autoSyncMethod = "metadata-title-change-stable";
 
-                // Do not block metadata/lyrics/video updates. Audio analysis
-                // independently refines the shared master clock when the live
-                // stream transition is detected.
+                // Stable karaoke mode:
+                // v2 live-audio transition locking is disabled because it could
+                // false-trigger on normal musical changes and push lyrics ahead.
+                // The shared clock starts exactly when the confirmed metadata title
+                // changes, matching the earlier 0-second baseline that tested best.
                 alignClockToLiveAudio(
                     streamBeingChecked,
                     songGeneration,
@@ -2072,7 +2074,7 @@ function getOfficialVideoOverride(artist, song) {
                 });
 
                 console.log(
-                    "LYRICS SYNC v2: metadata title change — waiting for continuous audio transition",
+                    "KARAOKE SYNC v3: metadata title change — stable master clock",
                     MASTER_SYNC_COMPENSATION_SECONDS,
                     "seconds"
                 );
