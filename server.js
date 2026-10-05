@@ -1888,14 +1888,16 @@ function getOfficialVideoOverride(artist, song) {
                 // IMPORTANT: do not use SHOUTcast PLAYEDAT here. Some stations
                 // report automation/server time well before the buffered audio
                 // reaches Second Life, which makes lyrics appear too early.
-                // Keep the proven metadata-change anchor and existing 22-second
-                // compensation. Station switching remains completely separate.
+                // The station publishes the next title before its buffered audio
+                // reaches Second Life. Delay the song clock so elapsed time reaches
+                // zero when the audible song is expected to begin.
+                // Station switching remains completely separate and untouched.
                 songStartedAt =
-                    Date.now() - (MASTER_SYNC_COMPENSATION_SECONDS * 1000);
-                autoSyncMethod = "metadata-title-change";
+                    Date.now() + (MASTER_SYNC_COMPENSATION_SECONDS * 1000);
+                autoSyncMethod = "metadata-title-change-delayed";
 
                 console.log(
-                    "LYRICS SYNC: metadata title change — compensation",
+                    "LYRICS SYNC: metadata title change — audio delay",
                     MASTER_SYNC_COMPENSATION_SECONDS,
                     "seconds"
                 );
