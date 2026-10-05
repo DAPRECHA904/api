@@ -79,13 +79,13 @@ app.get("/cloud.html", (req, res) => {
     // Async lyric lookups may only publish results from the current generation.
     let songGeneration = 0;
 
+    // Last automatic sync method used (diagnostic only).
+    let autoSyncMethod = "fallback";
+
     // Radio/lyrics synchronization compensation.
     // Calibrated for the current Slow Tide radio path.
     // Adjust only if repeated multi-song testing shows a consistent offset.
     const MASTER_SYNC_COMPENSATION_SECONDS = 22;
-
-    // Lyrics TV fine-tuning offset. Allows negative elapsed time before lyric zero.
-    const LYRICS_SYNC_OFFSET_SECONDS = -3;
 
 
     // ======================================================
@@ -1827,6 +1827,157 @@ function getOfficialVideoOverride(artist, song) {
 
 
     // ======================================================
+    // AUTOMATIC STATION SONG-POSITION SYNC
+    // ======================================================
+
+    // SHOUTcast DNAS song history can expose PLAYEDAT, a Unix timestamp
+    // representing when the station started the song. When available, Slow
+    // Tide uses that timestamp as the master clock instead of guessing from
+    // when Render happened to notice the metadata change.
+    //
+    // Stations that do not expose history automatically fall back to the
+    // existing compensation clock. No button or manual calibration required.
+
+    function stationBaseUrl(streamUrl) {
+        try {
+            const u = new URL(streamUrl);
+            return `${u.protocol}//${u.host}`;
+        }
+        catch (error) {
+            return null;
+        }
+    }
+
+    function normalizeComparableTitle(value) {
+        return cleanTitle(String(value || ""))
+            .toLowerCase()
+            .replace(/&amp;/g, "&")
+            .replace(/&#39;|&apos;/g, "'")
+            .replace(/&quot;/g, '"')
+            .replace(/[^a-z0-9]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    function titlesLikelyMatch(a, b) {
+        const x = normalizeComparableTitle(a);
+        const y = normalizeComparableTitle(b);
+        if (!x || !y) return false;
+        return x === y || x.includes(y) || y.includes(x);
+    }
+
+    function decodeHistoryText(value) {
+        return String(value || "")
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;|&apos;/g, "'")
+            .trim();
+    }
+
+    function parsePlayedAtHistory(body) {
+        const results = [];
+        const text = String(body || "");
+
+        // SHOUTcast JSON history: {"playedat":"...","title":"..."}
+        try {
+            const json = JSON.parse(text);
+            const walk = (value) => {
+                if (!value) return;
+                if (Array.isArray(value)) {
+                    value.forEach(walk);
+                    return;
+                }
+                if (typeof value === "object") {
+                    const played = value.playedat ?? value.PLAYEDAT;
+                    const title = value.title ?? value.TITLE;
+                    if (played && title) {
+                        results.push({
+                            playedAt: Number(played),
+                            title: decodeHistoryText(title)
+                        });
+                    }
+                    Object.values(value).forEach(walk);
+                }
+            };
+            walk(json);
+        }
+        catch (error) {}
+
+        // SHOUTcast XML history.
+        const xmlSong = /<SONG\b[^>]*>([\s\S]*?)<\/SONG>/gi;
+        let match;
+        while ((match = xmlSong.exec(text)) !== null) {
+            const block = match[1];
+            const p = block.match(/<PLAYEDAT>([^<]+)<\/PLAYEDAT>/i);
+            const t = block.match(/<TITLE>([\s\S]*?)<\/TITLE>/i);
+            if (p && t) {
+                results.push({
+                    playedAt: Number(p[1]),
+                    title: decodeHistoryText(t[1])
+                });
+            }
+        }
+
+        // Some public played pages expose playedat/title in HTML or scripts.
+        const loose = /playedat["'\s:=]+(\d{9,13})[\s\S]{0,500}?title["'\s:=]+["']([^"']+)["']/gi;
+        while ((match = loose.exec(text)) !== null) {
+            results.push({
+                playedAt: Number(match[1]),
+                title: decodeHistoryText(match[2])
+            });
+        }
+
+        return results.filter(item =>
+            Number.isFinite(item.playedAt) && item.playedAt > 0 && item.title
+        );
+    }
+
+    async function getStationSongStart(streamUrl, wantedTitle) {
+        const base = stationBaseUrl(streamUrl);
+        if (!base || !wantedTitle) return null;
+
+        const endpoints = [
+            `${base}/admin.cgi?sid=1&mode=viewjson&page=4`,
+            `${base}/admin.cgi?sid=1&mode=viewxml&page=4`,
+            `${base}/played?sid=1`,
+            `${base}/played.html?sid=1`
+        ];
+
+        for (const endpoint of endpoints) {
+            try {
+                const body = await fetchText(endpoint, 3500);
+                const history = parsePlayedAtHistory(body);
+
+                for (const item of history) {
+                    if (!titlesLikelyMatch(item.title, wantedTitle)) continue;
+
+                    // DNAS PLAYEDAT is normally seconds. Tolerate milliseconds.
+                    let startedMs = item.playedAt;
+                    if (startedMs < 100000000000) startedMs *= 1000;
+
+                    const ageSeconds = (Date.now() - startedMs) / 1000;
+
+                    // Reject stale / impossible history entries.
+                    if (ageSeconds >= -5 && ageSeconds <= 60 * 30) {
+                        return {
+                            startedAt: startedMs,
+                            ageSeconds,
+                            source: endpoint
+                        };
+                    }
+                }
+            }
+            catch (error) {
+                // Endpoint unavailable/private: silently try the next method.
+            }
+        }
+
+        return null;
+    }
+
+    // ======================================================
     // UPDATE NOW PLAYING
     // ======================================================
 
@@ -1887,8 +2038,43 @@ function getOfficialVideoOverride(artist, song) {
                 // Every Lyrics TV will use this same timestamp.
                 // This prevents a TV loaded in the middle of a song
                 // from starting the lyrics back at the beginning.
-                songStartedAt =
-                    Date.now() - (MASTER_SYNC_COMPENSATION_SECONDS * 1000);
+                // Prefer the station's own song-start timestamp when the
+                // SHOUTcast server exposes PLAYEDAT. This lets LRCLIB follow
+                // the station's actual song position automatically.
+                const stationTiming =
+                    await getStationSongStart(
+                        streamBeingChecked,
+                        cleaned
+                    );
+
+                if (
+                    streamBeingChecked !== currentStream ||
+                    cleaned !== currentTitle
+                ) {
+                    return;
+                }
+
+                if (stationTiming) {
+                    songStartedAt = stationTiming.startedAt;
+                    autoSyncMethod = "station-playedat";
+
+                    console.log(
+                        "AUTO SYNC: station PLAYEDAT found — song position",
+                        stationTiming.ageSeconds.toFixed(2),
+                        "seconds"
+                    );
+                }
+                else {
+                    songStartedAt =
+                        Date.now() - (MASTER_SYNC_COMPENSATION_SECONDS * 1000);
+                    autoSyncMethod = "fallback";
+
+                    console.log(
+                        "AUTO SYNC: station PLAYEDAT unavailable — using fallback",
+                        MASTER_SYNC_COMPENSATION_SECONDS,
+                        "seconds"
+                    );
+                }
 
 
                 // Clear lyrics cache
@@ -3402,14 +3588,16 @@ function getOfficialVideoOverride(artist, song) {
 
                 // Convenient current position in the song
                 songElapsedSeconds:
-                    ((Date.now() - songStartedAt) / 1000) +
-                    LYRICS_SYNC_OFFSET_SECONDS,
-
-                lyricsSyncOffsetSeconds:
-                    LYRICS_SYNC_OFFSET_SECONDS,
+                    Math.max(
+                        0,
+                        (Date.now() - songStartedAt) / 1000
+                    ),
 
                 syncCompensationSeconds:
                     MASTER_SYNC_COMPENSATION_SECONDS,
+
+                autoSyncMethod:
+                    autoSyncMethod,
 
                 updated:
                     new Date()
