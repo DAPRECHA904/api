@@ -3846,6 +3846,54 @@ function getOfficialVideoOverride(artist, song) {
     // START SERVER
     // ======================================================
 
+
+// ============================================================
+// SLOW TIDE - PUBLIC PRIVACY POLICY
+// Google / YouTube Data API compliance page.
+// Does not change karaoke synchronization.
+// ============================================================
+app.get("/privacy", (req, res) => {
+    res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Slow Tide Privacy Policy</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:850px;margin:40px auto;padding:0 22px;line-height:1.65;background:#07121f;color:#f5f7fb}
+h1,h2{color:#fff} a{color:#8fd8ff}
+.card{background:#0d2033;padding:28px;border-radius:16px}
+.small{opacity:.8}
+</style>
+</head>
+<body><div class="card">
+<h1>Slow Tide Privacy Policy</h1>
+<p class="small">Last updated: October 5, 2026</p>
+
+<p>Slow Tide is a music entertainment experience presented by Da Obsidian Court. Slow Tide uses YouTube API Services to locate relevant music videos corresponding to songs playing through the Slow Tide radio experience and may display those videos using YouTube's embedded player.</p>
+
+<h2>Information We Process</h2>
+<p>Slow Tide does not require users to create an account or provide personal information in order to use the music-video display. The application may process technical information normally transmitted when a user accesses a web service, such as basic request and server log information.</p>
+
+<h2>YouTube API Services</h2>
+<p>Slow Tide uses YouTube API Services. Use of YouTube features is also subject to the YouTube Terms of Service and Google's Privacy Policy.</p>
+<p><a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube Terms of Service</a></p>
+<p><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a></p>
+
+<h2>How YouTube Data Is Used</h2>
+<p>The application uses current song information to search for an appropriate YouTube music video. YouTube search results and video identifiers may be cached to reduce unnecessary API requests and improve performance. Slow Tide does not use the YouTube Data API to download YouTube videos.</p>
+
+<h2>Data Sharing</h2>
+<p>Slow Tide does not sell personal information. Information may be transmitted to service providers necessary to operate the application, including hosting services and YouTube/Google services when YouTube features are used.</p>
+
+<h2>Changes to This Policy</h2>
+<p>This policy may be updated when Slow Tide's features or data practices change. The current version will remain available at this URL.</p>
+
+<h2>Contact</h2>
+<p>Questions about this policy may be directed to the operator of Slow Tide / Da Obsidian Court through the venue's normal contact channels.</p>
+</div></body></html>`);
+});
+
     app.listen(
         PORT,
         () => {
