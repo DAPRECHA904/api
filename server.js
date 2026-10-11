@@ -938,6 +938,8 @@ function getOfficialVideoOverride(artist, song) {
 
 
             let settled = false;
+            let hardDeadlineTimer = null;
+
 
 
             function success(value) {
@@ -946,6 +948,7 @@ function getOfficialVideoOverride(artist, song) {
                     return;
 
                 settled = true;
+                if (hardDeadlineTimer) clearTimeout(hardDeadlineTimer);
 
                 resolve(value);
             }
@@ -957,6 +960,7 @@ function getOfficialVideoOverride(artist, song) {
                     return;
 
                 settled = true;
+                if (hardDeadlineTimer) clearTimeout(hardDeadlineTimer);
 
                 reject(error);
             }
@@ -1259,6 +1263,14 @@ function getOfficialVideoOverride(artist, song) {
                 }
             );
 
+
+            // The radio can send audio forever without a song-title frame.
+            // An inactivity timeout alone does not stop that stream.
+            // Bound the total lookup time, then allow other metadata sources.
+            hardDeadlineTimer = setTimeout(() => {
+                failure(new Error("ICY metadata deadline (9 seconds) exceeded"));
+                request.destroy();
+            }, 9000);
 
             request.end();
         });
@@ -1878,7 +1890,30 @@ function getOfficialVideoOverride(artist, song) {
         );
 
 
-        // 1. ICY
+        // Supreme Element exposes a working "Playing Now" song title on its
+        // SHOUTcast status page. Prefer that HTML page on this one station so
+        // a live audio connection cannot delay song titles or karaoke updates.
+        // Other stations retain the existing ICY-first synchronization path.
+        const supremeElementStation = (() => {
+            try {
+                const u = new URL(streamUrl);
+                return u.hostname.toLowerCase() === "supremeelement.filehostia.com" &&
+                    u.port === "10052";
+            } catch (_) {
+                return false;
+            }
+        })();
+
+        if (supremeElementStation) {
+            const titleFromPage = await tryShoutcastIndex(getRadioBase(streamUrl));
+            if (titleFromPage) {
+                console.log("SUPREME ELEMENT SHOUTCAST TITLE:", titleFromPage);
+                return titleFromPage;
+            }
+            console.log("Supreme Element page had no usable title; trying fallbacks.");
+        }
+
+        // 1. ICY (fallback for Supreme Element; primary for other stations)
 
         try {
 
