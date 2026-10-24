@@ -3939,7 +3939,7 @@ h1,h2{color:#fff} a{color:#8fd8ff}
 <p>This policy may be updated when Slow Tide's features or data practices change. The current version will remain available at this URL.</p>
 
 <h2>Contact</h2>
-<p>For privacy questions or requests, contact the Slow Tide / Da Obsidian Court operator through the venue. A dedicated public support email will be added once confirmed.</p>
+<p>For privacy questions, data requests, or support, email <a href="mailto:daprecha@hotmail.com">daprecha@hotmail.com</a>.</p>
 </div></body></html>`);
 });
 
@@ -3969,7 +3969,7 @@ h1,h2{color:#fff}a{color:#75dcff}.card{background:#0d2033;padding:28px;border-ra
 <h2>Privacy</h2>
 <p>See the <a href="/privacy">Slow Tide Privacy Policy</a> for information about data practices and use of YouTube API Services.</p>
 <h2>Contact</h2>
-<p>Questions may be directed to the operator of Slow Tide / Da Obsidian Court through the venue's normal contact channels.</p>
+<p>For support or questions, email <a href="mailto:daprecha@hotmail.com">daprecha@hotmail.com</a>.</p>
 </div></body></html>`);
 });
 
