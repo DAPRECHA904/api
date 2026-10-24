@@ -308,6 +308,12 @@ function getOfficialVideoOverride(artist, song) {
     // remain cached in memory for the lifetime of this server process.
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
+    const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+    function youtubeCacheValid(entry) {
+        return entry && Number.isFinite(entry.cachedAt) &&
+            Date.now() >= entry.cachedAt &&
+            Date.now() - entry.cachedAt < YOUTUBE_CACHE_MAX_AGE_MS;
+    }
     const videoSearchesInProgress = new Map();
 
     // Standard YouTube Data API projects commonly have 10,000 units/day.
@@ -354,7 +360,7 @@ function getOfficialVideoOverride(artist, song) {
             if (!fs.existsSync(VIDEO_CACHE_FILE)) return;
             const parsed = JSON.parse(fs.readFileSync(VIDEO_CACHE_FILE, "utf8"));
             for (const [key, value] of Object.entries(parsed || {})) {
-                if (value && typeof value === "object") {
+                if (youtubeCacheValid(value)) {
                     persistentVideoCache.set(key, value);
                 }
             }
@@ -3254,8 +3260,12 @@ function getOfficialVideoOverride(artist, song) {
         // 1) Reuse any song we have already looked up.
         if (persistentVideoCache.has(cacheKey)) {
             const cached = persistentVideoCache.get(cacheKey);
-            console.log("YOUTUBE PERMANENT CACHE HIT:", cacheKey);
-            return cached.found ? cached.result : null;
+            if (youtubeCacheValid(cached)) {
+                console.log("YOUTUBE CACHE HIT:", cacheKey);
+                return cached.found ? cached.result : null;
+            }
+            persistentVideoCache.delete(cacheKey);
+            savePersistentVideoCache();
         }
 
         // 2) If another TV/browser is already searching this exact song,
@@ -3903,7 +3913,7 @@ h1,h2{color:#fff} a{color:#8fd8ff}
 </head>
 <body><div class="card">
 <h1>Slow Tide Privacy Policy</h1>
-<p class="small">Last updated: October 5, 2026</p>
+<p class="small">Last updated: October 24, 2026</p>
 
 <p>Slow Tide is a music entertainment experience presented by Da Obsidian Court. Slow Tide uses YouTube API Services to locate relevant music videos corresponding to songs playing through the Slow Tide radio experience and may display those videos using YouTube's embedded player.</p>
 
@@ -3916,7 +3926,11 @@ h1,h2{color:#fff} a{color:#8fd8ff}
 <p><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a></p>
 
 <h2>How YouTube Data Is Used</h2>
-<p>The application uses current song information to search for an appropriate YouTube music video. YouTube search results and video identifiers may be cached to reduce unnecessary API requests and improve performance. Slow Tide does not use the YouTube Data API to download YouTube videos.</p>
+<p>The application uses current radio song metadata to search for relevant YouTube music videos. It may retain video IDs, titles, channel names, thumbnails, search queries and match scores in server-side memory and a local cache file to reduce API requests. Cached entries are discarded after 30 days and refreshed through a new API search when needed, subject to API quota limits. Expired entries are removed when the cache is loaded or accessed. Server restarts or temporary storage may delete entries earlier. No YouTube videos are downloaded or hosted by Slow Tide.</p>
+<h2>Cookies, Browser Storage and Third Parties</h2>
+<p>Slow Tide web pages may use browser storage to maintain display preferences or playback state. When YouTube videos are embedded, Google/YouTube may collect device identifiers, IP address, browser information, usage data and cookies or similar technologies under their own policies. Browser settings may allow visitors to restrict cookies or clear stored data. Hosting providers may process IP addresses and technical logs needed to deliver and protect the service.</p>
+<h2>Retention and Choices</h2>
+<p>Song-to-video search metadata is kept for up to 30 days in the application cache; it is not a user viewing history. Visitors can stop using the embedded player and manage YouTube-related cookies through their browser and Google privacy controls.</p>
 
 <h2>Data Sharing</h2>
 <p>Slow Tide does not sell personal information. Information may be transmitted to service providers necessary to operate the application, including hosting services and YouTube/Google services when YouTube features are used.</p>
@@ -3925,7 +3939,7 @@ h1,h2{color:#fff} a{color:#8fd8ff}
 <p>This policy may be updated when Slow Tide's features or data practices change. The current version will remain available at this URL.</p>
 
 <h2>Contact</h2>
-<p>Questions about this policy may be directed to the operator of Slow Tide / Da Obsidian Court through the venue's normal contact channels.</p>
+<p>For privacy questions or requests, contact the Slow Tide / Da Obsidian Court operator through the venue. A dedicated public support email will be added once confirmed.</p>
 </div></body></html>`);
 });
 
