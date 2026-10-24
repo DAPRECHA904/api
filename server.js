@@ -3995,6 +3995,7 @@ h1{font-size:54px;margin:0;color:#fff;text-shadow:0 0 20px #ff4aa2}h2{margin-top
 <div class="brand"><h1>Slow Tide</h1><p class="tag">MUSIC • VIDEO • R&amp;B EXPERIENCE</p></div>
 <div class="card">
 <h2>YouTube API Integration</h2>
+<p class="note"><strong>Google Cloud project:</strong> 302460013074. This is the only Google Cloud project used by the Slow Tide operator for this integration. Song lyrics are obtained separately through LRCLIB and do not use the YouTube Data API.</p>
 <p class="note">Slow Tide uses the YouTube Data API to search for an appropriate YouTube music video corresponding to the song currently playing through the Slow Tide radio experience. Videos are displayed using the YouTube embedded player. Slow Tide does not download or redistribute YouTube videos.</p>
 </div>
 <div class="card">
