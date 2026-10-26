@@ -1904,23 +1904,26 @@ function getOfficialVideoOverride(artist, song) {
         // SHOUTcast status page. Prefer that HTML page on this one station so
         // a live audio connection cannot delay song titles or karaoke updates.
         // Other stations retain the existing ICY-first synchronization path.
-        const supremeElementStation = (() => {
+        const preferShoutcastPage = (() => {
             try {
                 const u = new URL(streamUrl);
-                return u.hostname.toLowerCase() === "supremeelement.filehostia.com" &&
-                    u.port === "10052";
+                const host = u.hostname.toLowerCase();
+                return (host === "supremeelement.filehostia.com" && u.port === "10052") ||
+                    // This station has no ICY metadata interval; its status
+                    // page reliably reports the current song.
+                    (host === "nastyseduction.filehostia.com" && u.port === "8851");
             } catch (_) {
                 return false;
             }
         })();
 
-        if (supremeElementStation) {
+        if (preferShoutcastPage) {
             const titleFromPage = await tryShoutcastIndex(getRadioBase(streamUrl));
             if (titleFromPage) {
-                console.log("SUPREME ELEMENT SHOUTCAST TITLE:", titleFromPage);
+                console.log("PREFERRED SHOUTCAST TITLE:", titleFromPage);
                 return titleFromPage;
             }
-            console.log("Supreme Element page had no usable title; trying fallbacks.");
+            console.log("Preferred status page had no usable title; trying fallbacks.");
         }
 
         // 1. ICY (fallback for Supreme Element; primary for other stations)
@@ -3466,8 +3469,22 @@ function getOfficialVideoOverride(artist, song) {
         }
     }
 
-    async function getCurrentMusicVideo() {
+    // Video lookups run once per track in the background. The API itself must
+    // respond immediately so the TV can clear the previous track promptly.
+    // Captured songGeneration guards against slow, out-of-order YouTube results.
+    function buildVideoReply(result) {
+        return {
+            ...result,
+            songGeneration: songGeneration,
+            songStartedAt: songStartedAt,
+            songElapsedSeconds: Math.max(0, (Date.now() - songStartedAt) / 1000)
+        };
+    }
+
+    function getCurrentMusicVideo() {
         const title = currentTitle;
+        const generation = songGeneration;
+        const streamAtRequest = currentStream;
 
         if (
             !title ||
@@ -3475,84 +3492,95 @@ function getOfficialVideoOverride(artist, song) {
             title === "Connecting to new station..." ||
             title === "Waiting for song information..."
         ) {
-            return {
+            return buildVideoReply({
                 success: false,
                 status: "waiting",
                 title: title,
                 message: "Waiting for song information."
-            };
+            });
         }
 
-        const elapsed = () =>
-            Math.max(0, (Date.now() - songStartedAt) / 1000);
-
-        if (videoCache.title === title && videoCache.result) {
-            return {
-                ...videoCache.result,
-                songStartedAt: songStartedAt,
-                songElapsedSeconds: elapsed()
-            };
+        // Normal reads are instantaneous; no new YouTube API call is made.
+        if (videoCache.title === title &&
+            videoCache.generation === generation &&
+            videoCache.result) {
+            const cached = videoCache.result;
+            // Retry temporary network/API errors, but respect quota backoff.
+            const retryable = cached.status === "error" &&
+                Date.now() - videoCache.updated > 90000;
+            const quotaReady = cached.status === "quota_wait" &&
+                Date.now() >= youtubeSearchBackoffUntil;
+            if (!retryable && !quotaReady) return buildVideoReply(cached);
         }
 
         const info = splitArtistAndSong(title);
-
-        if (!info.song) {
-            return {
+        if (!info.artist || !info.song) {
+            const unavailable = {
                 success: false,
                 status: "unavailable",
                 title: title,
                 artist: info.artist,
                 song: info.song,
-                message: "Unable to determine song title."
+                message: "Waiting for complete artist and song metadata."
             };
+            videoCache = { title, generation, result: unavailable, updated: Date.now() };
+            return buildVideoReply(unavailable);
         }
 
-        try {
-            const match = await searchYouTubeMusicVideo(info.artist, info.song);
+        const pending = {
+            success: false,
+            status: "searching",
+            title: title,
+            artist: info.artist,
+            song: info.song,
+            message: "Finding a matching music video..."
+        };
+        videoCache = { title, generation, result: pending, updated: Date.now() };
 
-            let result;
+        function stillCurrent() {
+            return songGeneration === generation &&
+                currentTitle === title && currentStream === streamAtRequest;
+        }
 
-            if (!match) {
-                result = {
-                    success: false,
-                    status: "unavailable",
-                    title: title,
-                    artist: info.artist,
-                    song: info.song,
-                    message: "No embeddable music video found.",
-                    source: "YouTube"
-                };
-            } else {
-                result = {
-                    success: true,
-                    status: "ready",
-                    title: title,
-                    artist: info.artist,
-                    song: info.song,
-                    videoId: match.videoId,
-                    videoTitle: match.videoTitle,
-                    channelTitle: match.channelTitle,
-                    thumbnail: match.thumbnail,
-                    query: match.query,
-                    source: "YouTube",
-                    muted: true
-                };
+        // The one search is shared by all TVs; late results cannot restore
+        // a previous track after the radio has moved to the next song.
+        searchYouTubeMusicVideo(info.artist, info.song).then(match => {
+            if (!stillCurrent()) {
+                console.log("YOUTUBE STALE LOOKUP DISCARDED:", title);
+                return;
             }
 
-            videoCache = {
+            const result = !match ? {
+                success: false,
+                status: "unavailable",
                 title: title,
-                result: result,
-                updated: Date.now()
+                artist: info.artist,
+                song: info.song,
+                message: "No matching embeddable music video found.",
+                source: "YouTube"
+            } : {
+                success: true,
+                status: "ready",
+                title: title,
+                artist: info.artist,
+                song: info.song,
+                videoId: match.videoId,
+                videoTitle: match.videoTitle,
+                channelTitle: match.channelTitle,
+                thumbnail: match.thumbnail,
+                query: match.query,
+                source: "YouTube",
+                muted: true
             };
 
-            return {
-                ...result,
-                songStartedAt: songStartedAt,
-                songElapsedSeconds: elapsed()
-            };
-        } catch (error) {
+            videoCache = { title, generation, result, updated: Date.now() };
+            console.log("YOUTUBE VIDEO STATUS:", title, "=>", result.status);
+        }).catch(error => {
+            if (!stillCurrent()) {
+                console.log("YOUTUBE STALE ERROR DISCARDED:", title);
+                return;
+            }
             console.log("YOUTUBE VIDEO ERROR:", error.message);
-
             const errorCode = error.code || "";
             const isQuotaWait =
                 errorCode === "YOUTUBE_BACKOFF" ||
@@ -3563,37 +3591,24 @@ function getOfficialVideoOverride(artist, song) {
             if (isQuotaWait && Date.now() >= youtubeSearchBackoffUntil) {
                 youtubeSearchBackoffUntil = nextUtcDayTimestamp();
             }
-
-            // IMPORTANT: cache failures for this song too. video.html polls
-            // /api/video frequently; without this cache every poll would make
-            // another YouTube search request and burn quota.
-            const errorResult = {
+            const failure = {
                 success: false,
                 status: isQuotaWait ? "quota_wait" : "error",
                 title: title,
                 artist: info.artist,
                 song: info.song,
                 message: isQuotaWait
-                    ? "YouTube search is paused to protect quota. Cached videos will continue working."
-                    : error.message,
+                    ? "YouTube search is paused to protect quota. Cached videos continue to work."
+                    : "Video search temporarily unavailable; retrying automatically.",
                 source: "YouTube",
                 retryAfterSeconds: isQuotaWait
                     ? Math.max(1, Math.ceil((youtubeSearchBackoffUntil - Date.now()) / 1000))
-                    : null
+                    : 90
             };
+            videoCache = { title, generation, result: failure, updated: Date.now() };
+        });
 
-            videoCache = {
-                title: title,
-                result: errorResult,
-                updated: Date.now()
-            };
-
-            return {
-                ...errorResult,
-                songStartedAt: songStartedAt,
-                songElapsedSeconds: elapsed()
-            };
-        }
+        return buildVideoReply(pending);
     }
 
     // VIDEO API
@@ -4104,12 +4119,11 @@ h1{font-size:54px;margin:0;color:#fff;text-shadow:0 0 20px #ff4aa2}h2{margin-top
             );
 
 
-            // Check radio metadata every 3 seconds.
-            // This detects song changes much faster and improves
-            // lyric synchronization.
+            // Check radio metadata every 2 seconds; YouTube lookups run
+            // separately so music-video searches never block song detection.
             setInterval(
                 updateNowPlaying,
-                3000
+                2000
             );
         }
     );
