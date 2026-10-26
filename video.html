@@ -27,106 +27,203 @@
     <div class="overlay"><div class="brand">Slow Tide</div><div class="label">NOW PLAYING • VIDEO MUTED • PARCEL RADIO AUDIO</div><div class="artist" id="artist">Connecting...</div><div class="song" id="song">Slow Tide R&amp;B Island</div></div>
     </div>
     <script>
-    let player=null,playerReady=false,currentVideoId="",currentTrackTitle="",masterElapsed=0,masterAnchorLocal=Date.now(),pendingVideo=null;
+    // Slow Tide TV: keep only the current song on screen.
+    let player=null, playerReady=false, currentVideoId="", currentTrackTitle="";
+    let masterElapsed=0, masterAnchorLocal=Date.now(), pendingVideo=null;
+    let requestInFlight=false, currentGeneration=null, blockedVideoId="", blockedTrackTitle="";
+    let autoplayRetryTimer=null;
     const VIDEO_SYNC_OFFSET_SECONDS=0;
     const RESYNC_THRESHOLD_SECONDS=3;
+    const POLL_INTERVAL_MS=2000;
+
+    function showFallback(message, status) {
+      document.getElementById("fallback").classList.remove("hidden");
+      document.getElementById("fallbackMessage").textContent=message;
+      document.getElementById("status").textContent=status;
+    }
+
+    function clearCurrentVideo() {
+      currentVideoId="";
+      pendingVideo=null;
+      if(autoplayRetryTimer){clearInterval(autoplayRetryTimer);autoplayRetryTimer=null;}
+      if(playerReady&&player){try{player.stopVideo();}catch(e){}}
+    }
 
     function onYouTubeIframeAPIReady(){
-     player=new YT.Player("player",{width:"100%",height:"100%",playerVars:{autoplay:1,controls:0,disablekb:1,fs:0,playsinline:1,rel:0,iv_load_policy:3},events:{onReady:onPlayerReady,onStateChange:onPlayerStateChange,onAutoplayBlocked:onAutoplayBlocked}});
+      player=new YT.Player("player",{
+        width:"100%",height:"100%",
+        playerVars:{autoplay:1,controls:0,disablekb:1,fs:0,playsinline:1,rel:0,iv_load_policy:3},
+        events:{onReady:onPlayerReady,onStateChange:onPlayerStateChange,onError:onPlayerError,onAutoplayBlocked:onAutoplayBlocked}
+      });
     }
+
     function onPlayerReady(){
-     playerReady=true;player.mute();player.setVolume(0);
-     if(pendingVideo){loadVideo(pendingVideo.videoId,pendingVideo.elapsed);pendingVideo=null;}
-    }
-    function onPlayerStateChange(e){
-     if(!player)return;player.mute();player.setVolume(0);
-     if(e.data===YT.PlayerState.PLAYING){document.getElementById("fallback").classList.add("hidden");document.getElementById("status").textContent="SLOW TIDE • MUSIC VIDEO • MUTED";}
-    }
-    function onAutoplayBlocked(){
-     document.getElementById("status").textContent="AUTOPLAY BLOCKED BY VIEWER";
-     document.getElementById("fallbackMessage").textContent="Enable media autoplay in your viewer.";
-    }
-    function setMasterElapsed(s){masterElapsed=Math.max(0,Number(s)||0);masterAnchorLocal=Date.now();}
-    function getMasterElapsed(){return masterElapsed+(Date.now()-masterAnchorLocal)/1000+VIDEO_SYNC_OFFSET_SECONDS;}
-    function loadVideo(videoId,elapsed){
-     if(!videoId)return;
-     const start=Math.max(0,Number(elapsed)||0)+VIDEO_SYNC_OFFSET_SECONDS;
-     if(!playerReady){pendingVideo={videoId:videoId,elapsed:elapsed};return;}
-     currentVideoId=videoId;player.mute();player.setVolume(0);
-     player.loadVideoById({videoId:videoId,startSeconds:start});
-      setTimeout(forceMutedAutoplay, 150);
-      startAutoplayRetries();
-     player.mute();player.setVolume(0);player.playVideo();
-     document.getElementById("fallback").classList.add("hidden");
-    }
-    function maintainVideo(){
-     if(!playerReady||!player||!currentVideoId)return;
-     try{
-      if(!player.isMuted())player.mute();
-      if(player.getVolume()!==0)player.setVolume(0);
-      const state=player.getPlayerState();
-      if(state===YT.PlayerState.PAUSED||state===YT.PlayerState.CUED){player.mute();player.playVideo();}
-      const actual=Number(player.getCurrentTime())||0;
-      const wanted=Math.max(0,getMasterElapsed());
-      if(Math.abs(actual-wanted)>=RESYNC_THRESHOLD_SECONDS){player.seekTo(wanted,true);player.mute();}
-     }catch(e){}
-    }
-    
-let autoplayRetryTimer = null;
-
-function forceMutedAutoplay() {
-  if (!player || typeof player.mute !== "function") return;
-  try {
-    player.mute();
-    player.setVolume(0);
-    const state = player.getPlayerState();
-    if (state !== YT.PlayerState.PLAYING) {
-      player.playVideo();
-    }
-  } catch (e) {}
-}
-
-function startAutoplayRetries() {
-  if (autoplayRetryTimer) clearInterval(autoplayRetryTimer);
-  let attempts = 0;
-  autoplayRetryTimer = setInterval(() => {
-    attempts++;
-    forceMutedAutoplay();
-    if (attempts >= 12) {
-      clearInterval(autoplayRetryTimer);
-      autoplayRetryTimer = null;
-    }
-  }, 500);
-}
-
-async function updateVideo(){
-     try{
-      const r=await fetch("/api/video?t="+Date.now(),{cache:"no-store"});
-      const d=await r.json();
-      if(d.artist)document.getElementById("artist").textContent=d.artist;
-      if(d.song)document.getElementById("song").textContent=d.song;
-      if(d.songElapsedSeconds!==undefined)setMasterElapsed(d.songElapsedSeconds);
-      if(d.success&&d.videoId){
-       const newVideo=d.videoId!==currentVideoId;
-       const newTrack=d.title!==currentTrackTitle;
-       currentTrackTitle=d.title||"";
-       if(newVideo||newTrack)loadVideo(d.videoId,d.songElapsedSeconds);
-       document.getElementById("status").textContent="SLOW TIDE • MUSIC VIDEO • MUTED";
-       return;
+      playerReady=true;
+      player.mute();player.setVolume(0);
+      if(pendingVideo){
+        const next=pendingVideo;
+        pendingVideo=null;
+        if(next.title===currentTrackTitle)loadVideo(next.videoId,next.elapsed,next.title);
       }
-      currentTrackTitle=d.title||"";currentVideoId="";
-      if(playerReady&&player){try{player.stopVideo();}catch(e){}}
-      document.getElementById("fallback").classList.remove("hidden");
-      document.getElementById("fallbackMessage").textContent=d.message||"Finding the music video...";
-      document.getElementById("status").textContent=d.status==="error"?"VIDEO SEARCH ERROR":"SEARCHING FOR MUSIC VIDEO";
-     }catch(e){
-      document.getElementById("fallback").classList.remove("hidden");
-      document.getElementById("fallbackMessage").textContent="Connecting to Slow Tide video service...";
-      document.getElementById("status").textContent="CONNECTING...";
-     }
     }
+
+    function onPlayerStateChange(e){
+      if(!player)return;
+      try{player.mute();player.setVolume(0);}catch(err){}
+      if(e.data===YT.PlayerState.PLAYING && currentVideoId && !blockedVideoId){
+        document.getElementById("fallback").classList.add("hidden");
+        document.getElementById("status").textContent="SLOW TIDE • MUSIC VIDEO • MUTED";
+      }
+    }
+
+    function onPlayerError(e){
+      // Not every YouTube video permits embedded playback in SL viewers.
+      if(!currentVideoId)return;
+      blockedVideoId=currentVideoId;
+      blockedTrackTitle=currentTrackTitle;
+      clearCurrentVideo();
+      showFallback("This music video is unavailable in this viewer.","VIDEO UNAVAILABLE");
+      console.warn("Slow Tide player rejected video, error",e.data);
+    }
+
+    function onAutoplayBlocked(){
+      showFallback("Enable media autoplay in your viewer.","AUTOPLAY BLOCKED BY VIEWER");
+    }
+
+    function setMasterElapsed(s){
+      masterElapsed=Math.max(0,Number(s)||0);
+      masterAnchorLocal=Date.now();
+    }
+    function getMasterElapsed(){
+      return masterElapsed+(Date.now()-masterAnchorLocal)/1000+VIDEO_SYNC_OFFSET_SECONDS;
+    }
+
+    function loadVideo(videoId,elapsed,title){
+      if(!videoId || (videoId===blockedVideoId && title===blockedTrackTitle))return;
+      const start=Math.max(0,Number(elapsed)||0)+VIDEO_SYNC_OFFSET_SECONDS;
+      if(!playerReady){
+        pendingVideo={videoId,elapsed,title};
+        return;
+      }
+      currentVideoId=videoId;
+      player.mute();player.setVolume(0);
+      player.loadVideoById({videoId,startSeconds:start});
+      setTimeout(forceMutedAutoplay,150);
+      startAutoplayRetries();
+      player.mute();player.setVolume(0);
+      player.playVideo();
+      // Show the movie only after the player actually starts playing.
+      showFallback("Loading current music video...","LOADING VIDEO");
+    }
+
+    function maintainVideo(){
+      if(!playerReady||!player||!currentVideoId)return;
+      try{
+        if(!player.isMuted())player.mute();
+        if(player.getVolume()!==0)player.setVolume(0);
+        const state=player.getPlayerState();
+        if(state===YT.PlayerState.PAUSED||state===YT.PlayerState.CUED){
+          player.mute();player.playVideo();
+        }
+        if(state===YT.PlayerState.PLAYING){
+          const actual=Number(player.getCurrentTime())||0;
+          const wanted=Math.max(0,getMasterElapsed());
+          if(Math.abs(actual-wanted)>=RESYNC_THRESHOLD_SECONDS){
+            player.seekTo(wanted,true);player.mute();
+          }
+        }
+      }catch(e){}
+    }
+
+    function forceMutedAutoplay(){
+      if(!player||!currentVideoId)return;
+      try{
+        player.mute();
+        player.setVolume(0);
+        if(player.getPlayerState()!==YT.PlayerState.PLAYING)player.playVideo();
+      }catch(e){}
+    }
+
+    function startAutoplayRetries(){
+      if(autoplayRetryTimer)clearInterval(autoplayRetryTimer);
+      let attempts=0;
+      autoplayRetryTimer=setInterval(()=>{
+        attempts++;
+        forceMutedAutoplay();
+        if(attempts>=12||!currentVideoId){
+          clearInterval(autoplayRetryTimer);
+          autoplayRetryTimer=null;
+        }
+      },500);
+    }
+
+    async function updateVideo(){
+      // Never allow slow network requests to overlap and finish out of order.
+      if(requestInFlight)return;
+      requestInFlight=true;
+      const controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),8000);
+      try{
+        const response=await fetch("/api/video?t="+Date.now(),{
+          cache:"no-store",signal:controller.signal
+        });
+        if(!response.ok)throw new Error("HTTP "+response.status);
+        const d=await response.json();
+        const receivedTitle=d.title||"";
+        const generation=Number.isFinite(Number(d.songGeneration))?Number(d.songGeneration):null;
+        const changed=receivedTitle!==currentTrackTitle ||
+          (generation!==null&&currentGeneration!==null&&generation!==currentGeneration);
+
+        // Clear the OLD song immediately, even if the new video is searching,
+        // unavailable, or YouTube's API quota has been reached.
+        if(changed){
+          clearCurrentVideo();
+          currentTrackTitle=receivedTitle;
+          blockedVideoId="";
+          blockedTrackTitle="";
+          showFallback("Finding the current music video...","SONG CHANGED • SEARCHING");
+          console.log("Slow Tide detected song change:",receivedTitle);
+        }
+        if(generation!==null)currentGeneration=generation;
+        document.getElementById("artist").textContent=d.artist||"Slow Tide";
+        document.getElementById("song").textContent=d.song||receivedTitle||"Waiting for music...";
+        if(d.songElapsedSeconds!==undefined)setMasterElapsed(d.songElapsedSeconds);
+
+        if(d.success&&d.videoId){
+          if(d.videoId===blockedVideoId&&receivedTitle===blockedTrackTitle){
+            showFallback("This video cannot play in the current viewer.","VIDEO UNAVAILABLE");
+            return;
+          }
+          if(d.videoId!==currentVideoId){
+            loadVideo(d.videoId,d.songElapsedSeconds,receivedTitle);
+          }
+          return;
+        }
+
+        if(currentVideoId)clearCurrentVideo();
+        const message=d.message||"Finding the current music video...";
+        const label=d.status==="quota_wait"?"YOUTUBE QUOTA PAUSED":
+                    d.status==="error"?"VIDEO SEARCH ERROR":
+                    d.status==="searching"?"SEARCHING FOR MUSIC VIDEO":
+                    d.status==="waiting"?"WAITING FOR RADIO":
+                    "NO MATCHING VIDEO";
+        showFallback(message,label);
+      }catch(e){
+        // A transient network failure should not falsely signal a new song.
+        showFallback("Reconnecting to Slow Tide video service...","RECONNECTING...");
+      }finally{
+        clearTimeout(timeout);
+        requestInFlight=false;
+      }
+    }
+
+    // A focus/reconnect check helps SL viewers catch up after media pauses.
+    document.addEventListener("visibilitychange",()=>{
+      if(!document.hidden)updateVideo();
+    });
+    window.addEventListener("online",updateVideo);
     updateVideo();
-    setInterval(updateVideo,3000);
+    setInterval(updateVideo,POLL_INTERVAL_MS);
     setInterval(maintainVideo,1000);
     </script>
     <script src="https://www.youtube.com/iframe_api"></script>
