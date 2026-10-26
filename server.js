@@ -3199,6 +3199,27 @@ function getOfficialVideoOverride(artist, song) {
             .trim();
     }
 
+    // Require complete artist and song matches to reject similarly named tracks.
+    function hasVideoPhrase(text, phrase) {
+        return !!phrase && (" " + text + " ").includes(" " + phrase + " ");
+    }
+
+    function videoArtistMatches(title, channel, wantedArtist) {
+        if (!wantedArtist) return false;
+
+        if (hasVideoPhrase(title, wantedArtist) || hasVideoPhrase(channel, wantedArtist)) {
+            return true;
+        }
+
+        // Channel labels often omit spaces, e.g. JamieFoxxVEVO.
+        const compactArtist = wantedArtist.replace(/\s+/g, "");
+        const compactChannel = channel.replace(/\s+/g, "");
+        return compactArtist.length >= 6 && [
+            compactArtist, compactArtist + "vevo",
+            compactArtist + "topic", compactArtist + "official"
+        ].includes(compactChannel);
+    }
+
     function scoreYouTubeResult(item, artist, song) {
         if (!item || !item.snippet) return -1000;
 
@@ -3209,13 +3230,14 @@ function getOfficialVideoOverride(artist, song) {
             removeFeaturedArtists(removeVersionInfo(song))
         );
 
-        let score = 0;
+        // Never show another artist's version, even if its title is very similar.
+        if (!wantedArtist || !wantedSong ||
+            !hasVideoPhrase(title, wantedSong) ||
+            !videoArtistMatches(title, channel, wantedArtist)) {
+            return -1000;
+        }
 
-        if (wantedSong && title.includes(wantedSong)) score += 140;
-        if (
-            wantedArtist &&
-            (title.includes(wantedArtist) || channel.includes(wantedArtist))
-        ) score += 120;
+        let score = 260; // Verified both artist and full track title.
 
         if (
             title.includes("official music video") ||
@@ -3261,8 +3283,18 @@ function getOfficialVideoOverride(artist, song) {
         if (persistentVideoCache.has(cacheKey)) {
             const cached = persistentVideoCache.get(cacheKey);
             if (youtubeCacheValid(cached)) {
-                console.log("YOUTUBE CACHE HIT:", cacheKey);
-                return cached.found ? cached.result : null;
+                if (!cached.found) {
+                    console.log("YOUTUBE NEGATIVE CACHE HIT:", cacheKey);
+                    return null;
+                }
+                const saved = cached.result;
+                if (saved && scoreYouTubeResult({
+                    snippet: { title: saved.videoTitle, channelTitle: saved.channelTitle }
+                }, artist, song) > -1000) {
+                    console.log("YOUTUBE VERIFIED CACHE HIT:", cacheKey);
+                    return saved;
+                }
+                console.log("YOUTUBE REJECTED STALE WRONG MATCH:", cacheKey);
             }
             persistentVideoCache.delete(cacheKey);
             savePersistentVideoCache();
@@ -3318,7 +3350,7 @@ function getOfficialVideoOverride(artist, song) {
                 "https://www.googleapis.com/youtube/v3/search" +
                 "?part=snippet" +
                 "&type=video" +
-                "&maxResults=10" +
+                "&maxResults=20" +
                 "&videoEmbeddable=true" +
                 "&videoSyndicated=true" +
                 "&safeSearch=moderate" +
