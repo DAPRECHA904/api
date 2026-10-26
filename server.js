@@ -266,7 +266,10 @@ app.get("/cloud.html", (req, res) => {
 // KNOWN OFFICIAL MUSIC VIDEO OVERRIDES
 // Keys are normalized "artist - song" strings. Add more known official videos here as needed.
 const OFFICIAL_VIDEO_OVERRIDES = {
-  "mk xyz - one time": "cLwnojWx0Ac"
+  "mk xyz - one time": "cLwnojWx0Ac",
+  // The Weeknd — Earned It (Fifty Shades of Grey), official video supplied by venue owner.
+  "the weeknd - earned it": "waU75jdUnYw",
+  "the weeknd - earned it fifty shades of grey": "waU75jdUnYw"
 };
 
 function videoOverrideKey(artist, song) {
@@ -278,15 +281,16 @@ function videoOverrideKey(artist, song) {
 }
 
 function getOfficialVideoOverride(artist, song) {
+  // Normalize stored override keys too: videoOverrideKey removes punctuation.
   const exact = videoOverrideKey(artist, song);
-  if (OFFICIAL_VIDEO_OVERRIDES[exact]) return OFFICIAL_VIDEO_OVERRIDES[exact];
-
-  // Also tolerate punctuation/version cleanup differences.
   const wantedArtist = normalizeVideoText(artist);
   const wantedSong = normalizeVideoText(removeFeaturedArtists(removeVersionInfo(song)));
+  if (!wantedArtist || !wantedSong) return null;
+
   for (const [key, videoId] of Object.entries(OFFICIAL_VIDEO_OVERRIDES)) {
     const normalizedKey = normalizeVideoText(key);
-    if (normalizedKey.includes(wantedArtist) && normalizedKey.includes(wantedSong)) {
+    if (normalizedKey === exact ||
+        normalizedKey === wantedArtist + " " + wantedSong) {
       return videoId;
     }
   }
