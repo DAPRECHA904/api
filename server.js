@@ -2199,51 +2199,22 @@ function getOfficialVideoOverride(artist, song) {
     // ======================================================
 
     function splitArtistAndSong(fullTitle) {
+        const text = String(fullTitle || "").trim();
+        if (!text) return {artist: null, song: null};
 
-        if (!fullTitle) {
-
+        // Radio stations commonly send "Artist - Song", "Artist- Song",
+        // "Artist -Song", or use an en/em dash. A separator must have
+        // whitespace on at least one side so names like JAY-Z stay intact.
+        const matched = text.match(/^(.+?)\s+[-–—]\s*(.+)$/) ||
+                        text.match(/^(.+?)\s*[-–—]\s+(.+)$/);
+        if (matched) {
             return {
-                artist: null,
-                song: null
+                artist: matched[1].trim(),
+                song: removeVersionInfo(matched[2].trim())
             };
         }
 
-
-        const separator =
-            fullTitle.indexOf(
-                " - "
-            );
-
-
-        if (
-            separator === -1
-        ) {
-
-            return {
-                artist: null,
-                song:
-                    fullTitle.trim()
-            };
-        }
-
-
-        return {
-
-            artist:
-                fullTitle
-                    .substring(
-                        0,
-                        separator
-                    )
-                    .trim(),
-
-            song:
-                fullTitle
-                    .substring(
-                        separator + 3
-                    )
-                    .trim()
-        };
+        return {artist: null, song: removeVersionInfo(text)};
     }
 
 
@@ -2315,10 +2286,10 @@ function getOfficialVideoOverride(artist, song) {
             )
 
             // Common station/video metadata noise that hurts LRCLIB matching
-            .replace(/\s*[\(\[][^)\]]*(?:official|visualizer|lyric video|lyrics video|audio only|hd|4k)[^)\]]*[\)\]]\s*/gi, " ")
+            .replace(/\s*[\(\[][^)\]]*(?:official|visualizer|lyric video|lyrics video|lyrics? on screen|lyrics? onscreen|on[- ]screen lyrics|audio only|hd|4k)[^)\]]*[\)\]]\s*/gi, " ")
             .replace(/\s+(?:official\s+)?(?:music\s+)?video\s*$/gi, "")
             .replace(/\s+(?:official\s+)?audio\s*$/gi, "")
-            .replace(/\s+(?:lyrics?|visualizer)\s*$/gi, "")
+            .replace(/\s+(?:lyrics?|visualizer|lyrics? on screen)\s*$/gi, "")
             .replace(/\s+\|\s+.*$/g, "")
 
             .replace(
@@ -2391,15 +2362,12 @@ function getOfficialVideoOverride(artist, song) {
         }
 
 
-        // Original
-        add(song);
-
-
-        // Remove radio/version labels
-        const noVersion =
-            removeVersionInfo(song);
-
+        // Search the clean title first; this prevents bad metadata labels
+        // from consuming the limited LRCLIB query budget.
+        const noVersion = removeVersionInfo(song);
         add(noVersion);
+        // Keep the original as a last-resort variant, not as the first query.
+        if (noVersion !== song) add(song);
 
 
         // Remove featured artist
