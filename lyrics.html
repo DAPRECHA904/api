@@ -1638,6 +1638,7 @@ let plainLyricsLines = [];
 let plainIndex = 0;
 
 let plainTimer = null;
+let plainStartTimer = null;
 
 
 /*
@@ -1988,44 +1989,29 @@ function startPlainLyrics(text) {
 
     plainIndex = 0;
 
+    // Plain lyrics have no timestamps. Wait for the delayed song clock
+    // before displaying the first line, even if lookup finishes early.
+    const delayedElapsed = (Date.now() - songStartTime) / 1000 + SYNC_OFFSET_SECONDS;
+    const waitMs = Math.max(0, -delayedElapsed * 1000);
+    plainStartTimer = setTimeout(() => {
+        plainStartTimer = null;
+        if (lyricsMode !== "plain") return;
+        showPlainLine();
+        plainTimer = setInterval(() => {
+            plainIndex++;
+            if (plainIndex >= plainLyricsLines.length) {
+                plainIndex = plainLyricsLines.length - 1;
+                stopPlainLyrics();
+                return;
+            }
+            showPlainLine();
+        }, 8000);
+    }, waitMs);
 
-    showPlainLine();
-
-
-    /*
-        Plain lyrics do not contain timestamps.
-
-        We advance them slowly as a visual fallback.
-    */
-
-    plainTimer =
-        setInterval(
-            () => {
-
-                plainIndex++;
-
-
-                if (
-                    plainIndex >=
-                    plainLyricsLines.length
-                ) {
-
-                    plainIndex =
-                        plainLyricsLines.length -
-                        1;
-
-                    stopPlainLyrics();
-
-                    return;
-                }
+    return;
 
 
-                showPlainLine();
 
-            },
-
-            5000
-        );
 }
 
 
@@ -2061,6 +2047,11 @@ function showPlainLine() {
 
 
 function stopPlainLyrics() {
+
+    if (plainStartTimer) {
+        clearTimeout(plainStartTimer);
+        plainStartTimer = null;
+    }
 
     if (plainTimer) {
 
