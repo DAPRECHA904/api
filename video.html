@@ -36,7 +36,7 @@
     let radioGeneration=null;
     let radioTrackTitle="";
     let videoRequestSequence=0;
-    const VIDEO_SYNC_OFFSET_SECONDS=0;
+    const VIDEO_SYNC_OFFSET_SECONDS=-10; // Show video 10 seconds behind the radio master clock.
     const RESYNC_THRESHOLD_SECONDS=3;
     const POLL_INTERVAL_MS=2000;
 
@@ -235,6 +235,13 @@
         if(d.songElapsedSeconds!==undefined)setMasterElapsed(d.songElapsedSeconds);
 
         if(d.success&&d.videoId){
+          // Wait until the radio song has played for 10 seconds before starting video.
+          // The next normal poll will start it at the delayed master position.
+          if(getMasterElapsed()<0){
+            if(currentVideoId)clearCurrentVideo();
+            showFallback("Synchronizing video with radio...","VIDEO DELAY • 10 SECONDS");
+            return;
+          }
           if(d.videoId===blockedVideoId&&receivedTitle===blockedTrackTitle){
             showFallback("This video cannot play in the current viewer.","VIDEO UNAVAILABLE");
             return;
