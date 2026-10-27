@@ -61,7 +61,7 @@ app.get("/cloud.html", (req, res) => {
     // ======================================================
 
     let currentStream =
-        "http://KhaoticLove.filehostia.com:8727";
+        "http://nastyseduction.filehostia.com:8851";
 
     let currentTitle =
         "Connecting to Slow Tide...";
