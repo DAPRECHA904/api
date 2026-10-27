@@ -3273,7 +3273,9 @@ function getOfficialVideoOverride(artist, song) {
                     scoreYouTubeResult(item, artist, song) > -1000);
                 let detailedCandidates = candidates;
                 if (candidates.length) {
-                    const ids = candidates.map(item => item.id.videoId);
+                    const ids = candidates.slice().sort((a, b) =>
+                        scoreYouTubeResult(b, artist, song) - scoreYouTubeResult(a, artist, song))
+                        .slice(0, 50).map(item => item.id.videoId);
                     const detailUrl = "https://www.googleapis.com/youtube/v3/videos" +
                         "?part=statistics,contentDetails,status" +
                         "&id=" + encodeURIComponent(ids.join(",")) +
