@@ -294,7 +294,8 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "the weeknd - earned it fifty shades of grey": "waU75jdUnYw",
   "bryson tiller - outside": "UkcOC8YEVMQ",
   "the isley brothers - hello its me": "JHSxgcefIhM",
-  "usher - there goes my baby": "m6urbZyHgO4"
+  "usher - there goes my baby": "m6urbZyHgO4",
+  "mya - my love is like wo": "K4gcQj_NZ30"
 };
 
 function videoOverrideKey(artist, song) {
@@ -2990,6 +2991,8 @@ function getOfficialVideoOverride(artist, song) {
 
     function normalizeVideoText(value) {
         return String(value || "")
+            .normalize("NFKD")
+            .replace(/[\u0300-\u036f]/g, "")
             .toLowerCase()
             .replace(/&amp;/g, " and ")
             .replace(/&#39;/g, "'")
