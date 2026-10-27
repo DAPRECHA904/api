@@ -1656,61 +1656,16 @@ const SYNC_OFFSET_SECONDS = 0;
 ===================================================== */
 
 function splitSong(fullTitle) {
-
-    if (!fullTitle) {
-
-        return {
-
-            artist:
-                "Slow Tide",
-
-            song:
-                "R&B Island"
-        };
-    }
-
-
-    const separator =
-        fullTitle.indexOf(
-            " - "
-        );
-
-
-    if (
-        separator === -1
-    ) {
-
-        return {
-
-            artist:
-                fullTitle,
-
-            song:
-                ""
-        };
-    }
-
-
-    return {
-
-        artist:
-
-            fullTitle
-                .substring(
-                    0,
-                    separator
-                )
-                .trim(),
-
-
-        song:
-
-            fullTitle
-                .substring(
-                    separator + 3
-                )
-                .trim()
-    };
+    const text = String(fullTitle || "").trim();
+    if (!text) return {artist: "Slow Tide", song: "R&B Island"};
+    // Keep display parsing in step with the server's metadata parsing.
+    const match = text.match(/^(.+?)\s+[-–—]\s*(.+)$/) ||
+                  text.match(/^(.+?)\s*[-–—]\s+(.+)$/);
+    if (!match) return {artist: text, song: ""};
+    const song = match[2]
+        .replace(/\s*[\(\[][^)\]]*(?:lyrics?\s+on\s+screen|lyrics?\s+onscreen|official|lyric video|lyrics video|visualizer)[^)\]]*[\)\]]\s*/gi, " ")
+        .replace(/\s+/g, " ").trim();
+    return {artist: match[1].trim(), song};
 }
 
 
