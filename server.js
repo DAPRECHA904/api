@@ -297,6 +297,7 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "usher - there goes my baby": "m6urbZyHgO4",
   "mya - my love is like wo": "K4gcQj_NZ30",
   "dru hill - these are the times": "6wPkC3DO_7Y",
+  "heather headley - i wish i wasnt": "8oz716XcQqU",
   // Manual video selected for Mary J. Blige — Not Gon Cry.
   "mary j blige - not gon cry": "WiM3bGcXYxk",
   "mary j blige - not goin cry": "WiM3bGcXYxk",
@@ -344,7 +345,7 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const YOUTUBE_CACHE_SELECTION_VERSION = 5;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 6;
     function youtubeCacheValid(entry) {
         return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
             Number.isFinite(entry.cachedAt) &&
@@ -3222,9 +3223,52 @@ function getOfficialVideoOverride(artist, song) {
                     return null;
                 }
 
+                // An official-looking keyword query can still return only
+                // automatically generated Topic audio. Search a second time
+                // with the artist's VEVO/music-video wording before falling back.
+                // Charge quota explicitly and never exceed the daily budget.
+                const allSearchResults = [...data.items];
+                const hasArtistVideo = items => items.some(item => {
+                    if (!item || !item.snippet || !item.id || !item.id.videoId) return false;
+                    if (scoreYouTubeResult(item, artist, song) < 0) return false;
+                    const channel = normalizeVideoText(item.snippet.channelTitle);
+                    const title = normalizeVideoText(item.snippet.title);
+                    return !/\\btopic\\b/.test(channel) &&
+                        (/\\bofficial (music )?video\\b/.test(title) ||
+                         /vevo/.test(channel));
+                });
+                if (!hasArtistVideo(allSearchResults) &&
+                    youtubeQuotaSpent + YOUTUBE_SEARCH_COST <= YOUTUBE_DAILY_APP_BUDGET) {
+                    const extraQuery = [artist, noFeature || cleanSong || song,
+                        "VEVO official video"].filter(Boolean).join(" ");
+                    const extraUrl = "https://www.googleapis.com/youtube/v3/search" +
+                        "?part=snippet&type=video&maxResults=35" +
+                        "&videoEmbeddable=true&videoSyndicated=true" +
+                        "&safeSearch=moderate&regionCode=US" +
+                        "&q=" + encodeURIComponent(extraQuery) +
+                        "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
+                    youtubeQuotaSpent += YOUTUBE_SEARCH_COST;
+                    console.log("YOUTUBE SECOND OFFICIAL SEARCH:", extraQuery,
+                        "| APP QUOTA:", youtubeQuotaSpent + "/" + YOUTUBE_DAILY_APP_BUDGET);
+                    try {
+                        const extraData = JSON.parse(await fetchText(extraUrl, 10000));
+                        if (Array.isArray(extraData.items)) {
+                            const seen = new Set(allSearchResults.map(i => i.id && i.id.videoId));
+                            for (const item of extraData.items) {
+                                if (item.id && item.id.videoId && !seen.has(item.id.videoId)) {
+                                    allSearchResults.push(item);
+                                    seen.add(item.id.videoId);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.log("YOUTUBE SECOND SEARCH UNAVAILABLE:", error.message);
+                    }
+                }
+
                 // search.list has no view statistics. One videos.list lookup
                 // supplies real view counts and embed status for candidates.
-                const candidates = data.items.filter(item =>
+                const candidates = allSearchResults.filter(item =>
                     item && item.id && item.id.videoId &&
                     scoreYouTubeResult(item, artist, song) > -1000);
                 let detailedCandidates = candidates;
