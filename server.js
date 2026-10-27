@@ -3102,13 +3102,13 @@ function getOfficialVideoOverride(artist, song) {
         if (/\bofficial (music )?video\b/.test(title) && officialChannel) score += 160;
         if (compactChannel === compactArtist + "vevo") score += 35;
         if (/\b(vevo|records|recordings|entertainment)\b/.test(channel)) score += 12;
+        const explicitlyMusicVideo = /\b(official (music )?video|music video|official mv|video clip|hd video)\b/.test(title);
         // Without an attributable uploader, prefer no video over a false match.
         if (/\b(fan|news|reaction|reactions|karaoke|tribute|cover channel)\b/.test(channel)) return -1000;
         // Some genuine music videos are distributed by licensed archive and
         // entertainment uploaders. A matching title with clear video wording
         // can qualify even if the channel is not the artist's own channel.
         // It remains lower priority than a matching official artist/VEVO channel.
-        const explicitlyMusicVideo = /\b(official (music )?video|music video|official mv|video clip|hd video)\b/.test(title);
         if (!artistChannel && !/\b(vevo|records|recordings)\b/.test(channel) &&
             !explicitlyMusicVideo) return -1000;
         // Music-video evidence is mandatory; do not show interviews or unrelated
