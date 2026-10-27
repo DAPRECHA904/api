@@ -32,6 +32,10 @@
     let masterElapsed=0, masterAnchorLocal=Date.now(), pendingVideo=null;
     let requestInFlight=false, currentGeneration=null, blockedVideoId="", blockedTrackTitle="";
     let autoplayRetryTimer=null;
+    let radioRequestInFlight=false;
+    let radioGeneration=null;
+    let radioTrackTitle="";
+    let videoRequestSequence=0;
     const VIDEO_SYNC_OFFSET_SECONDS=0;
     const RESYNC_THRESHOLD_SECONDS=3;
     const POLL_INTERVAL_MS=2000;
@@ -46,7 +50,11 @@
       currentVideoId="";
       pendingVideo=null;
       if(autoplayRetryTimer){clearInterval(autoplayRetryTimer);autoplayRetryTimer=null;}
-      if(playerReady&&player){try{player.stopVideo();}catch(e){}}
+      if(playerReady&&player){
+        try{player.stopVideo();}catch(e){}
+        // Unload the previous track. Simply hiding the iframe can leave its audio playing.
+        try{player.cueVideoById({videoId:"",startSeconds:0});}catch(e){}
+      }
     }
 
     function onYouTubeIframeAPIReady(){
@@ -157,10 +165,43 @@
       },500);
     }
 
+    // Lightweight live-radio check independent of YouTube lookup and quota.
+    // If video lookup hangs, the old video is still stopped on the next radio poll.
+    async function checkRadioSong(){
+      if(radioRequestInFlight)return;
+      radioRequestInFlight=true;
+      const controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),3500);
+      try{
+        const r=await fetch("/api/now-playing?t="+Date.now(),{cache:"no-store",signal:controller.signal});
+        if(!r.ok)throw new Error("Radio status "+r.status);
+        const d=await r.json();
+        const title=String(d.title||"");
+        const started=Number(d.songStartedAt)||0;
+        if(!title||/^(connecting to|waiting for song)/i.test(title))return;
+        const changed=!!radioTrackTitle &&
+          (title!==radioTrackTitle||(started&&radioGeneration&&started!==radioGeneration));
+        radioTrackTitle=title;
+        if(started)radioGeneration=started;
+        if(changed){
+          // Discard any outstanding responses for the previous song.
+          videoRequestSequence++;
+          currentTrackTitle=title;
+          currentGeneration=null;
+          clearCurrentVideo();
+          showFallback("Finding the new song's music video...","SONG CHANGED • SEARCHING");
+          console.log("Slow Tide radio changed:",title);
+          updateVideo();
+        }
+      }catch(error){console.warn("Radio poll retry:",error.message);}
+      finally{clearTimeout(timeout);radioRequestInFlight=false;}
+    }
+
     async function updateVideo(){
       // Never allow slow network requests to overlap and finish out of order.
       if(requestInFlight)return;
       requestInFlight=true;
+      const requestSequence=videoRequestSequence;
       const controller=new AbortController();
       const timeout=setTimeout(()=>controller.abort(),8000);
       try{
@@ -169,7 +210,11 @@
         });
         if(!response.ok)throw new Error("HTTP "+response.status);
         const d=await response.json();
+        if(requestSequence!==videoRequestSequence)return;
         const receivedTitle=d.title||"";
+        // The radio endpoint may have advanced since this request began.
+        // Never resurrect a previously playing track from a stale response.
+        if(radioTrackTitle&&receivedTitle&&receivedTitle!==radioTrackTitle)return;
         const generation=Number.isFinite(Number(d.songGeneration))?Number(d.songGeneration):null;
         const changed=receivedTitle!==currentTrackTitle ||
           (generation!==null&&currentGeneration!==null&&generation!==currentGeneration);
@@ -209,8 +254,11 @@
                     "NO MATCHING VIDEO";
         showFallback(message,label);
       }catch(e){
-        // A transient network failure should not falsely signal a new song.
-        showFallback("Reconnecting to Slow Tide video service...","RECONNECTING...");
+        // Keep an existing correct video visible during temporary API outages.
+        // The independent radio check handles song changes.
+        if(!currentVideoId){
+          showFallback("Reconnecting to Slow Tide video service...","RECONNECTING...");
+        }
       }finally{
         clearTimeout(timeout);
         requestInFlight=false;
@@ -222,7 +270,9 @@
       if(!document.hidden)updateVideo();
     });
     window.addEventListener("online",updateVideo);
+    checkRadioSong();
     updateVideo();
+    setInterval(checkRadioSong,1000);
     setInterval(updateVideo,POLL_INTERVAL_MS);
     setInterval(maintainVideo,1000);
     </script>
