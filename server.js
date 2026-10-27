@@ -301,6 +301,7 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "tyrese - how you gonna act like that": "y3HbIHGnSR4",
   "112 - u already know": "ynMnPGmhsG0",
   "toni braxton - un break my heart": "p2Rch6WvPJE",
+  "jagged edge - lets get married": "9XwPCVvMcuE",
   "michael jackson - another part of me": "8vwHQNQ88cM",
   "michael jackson - another part of me 2012 remaster": "8vwHQNQ88cM",
   // Manual video selected for Mary J. Blige — Not Gon Cry.
@@ -350,7 +351,7 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const YOUTUBE_CACHE_SELECTION_VERSION = 7;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 8;
     function youtubeCacheValid(entry) {
         return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
             Number.isFinite(entry.cachedAt) &&
@@ -3053,7 +3054,7 @@ function getOfficialVideoOverride(artist, song) {
             !videoArtistMatches(title, channel, wantedArtist)) return -1000;
 
         // Reaction titles commonly quote "(Official Video)" despite being reactions.
-        if (/\b(react|reacts|reacting|reaction|review|reviews|reviewing|breakdown|commentary|explained|podcast|interview|tutorial|karaoke|instrumental|cover|covers|parody|trailer|teaser|snippet|preview|fanmade|fan made)\b/.test(title)) return -1000;
+        if (/\b(react|reacts|reacting|reaction|review|reviews|reviewing|breakdown|commentary|explained|podcast|interview|tutorial|karaoke|instrumental|cover|covers|parody|trailer|teaser|snippet|preview|fanmade|fan made|behind the scenes|making of|documentary|why|shares why|discusses|talks about)\b/.test(title)) return -1000;
         if (/\b(remix|mashup|sped up|slowed|nightcore|reverb)\b/.test(title) &&
             !/\b(remix|mashup|sped up|slowed|nightcore|reverb)\b/.test(normalizeVideoText(song))) return -1000;
 
@@ -3090,9 +3091,14 @@ function getOfficialVideoOverride(artist, song) {
         if (/\b(vevo|records|recordings|entertainment)\b/.test(channel)) score += 12;
         // Without an attributable uploader, prefer no video over a false match.
         if (!artistChannel && !/\b(vevo|records|recordings)\b/.test(channel)) return -1000;
+        // Music-video evidence is mandatory; do not show interviews or unrelated
+        // artist uploads merely because their description mentions the song.
+        const musicVideoEvidence = /\b(official (music )?video|music video|official mv|vevo|hd video|video clip)\b/.test(title) ||
+            (officialChannel && !/\b(live performance|performance|interview|rehearsal|teaser|audio)\b/.test(title));
+        if (!musicVideoEvidence) return -1000;
         if (/\b(lyric video|lyrics|lyrics on screen)\b/.test(title)) score -= 135;
         // Reject explicitly audio-only uploads when selecting a music video.
-        if (/\b(audio only|official audio|audio version|visual audio)\b/.test(title) || /\(audio\)/.test(String(item.snippet.title).toLowerCase())) return -1000;
+        if (/\b(audio only|official audio|audio version|visual audio|audio)\b/.test(title) || /\btopic\b/.test(channel)) return -1000;
         if (/\b(audio|topic)\b/.test(title)) score -= 90;
         // Topic channels are auto-generated track audio, not official music videos.
         if (/\btopic\b/.test(channel)) score -= 260;
@@ -3239,12 +3245,12 @@ function getOfficialVideoOverride(artist, song) {
                 const allSearchResults = [...data.items];
                 const hasArtistVideo = items => items.some(item => {
                     if (!item || !item.snippet || !item.id || !item.id.videoId) return false;
-                    if (scoreYouTubeResult(item, artist, song) < 0) return false;
-                    const channel = normalizeVideoText(item.snippet.channelTitle);
                     const title = normalizeVideoText(item.snippet.title);
-                    return !/\\btopic\\b/.test(channel) &&
-                        (/\\bofficial (music )?video\\b/.test(title) ||
-                         /vevo/.test(channel));
+                    const channel = normalizeVideoText(item.snippet.channelTitle);
+                    // A matched artist-channel video outranks Topic and audio uploads.
+                    return scoreYouTubeResult(item, artist, song) >= 200 &&
+                        !/\btopic\b/.test(channel) &&
+                        !/\b(audio|reaction|review|interview|teaser)\b/.test(title);
                 });
                 if (!hasArtistVideo(allSearchResults) &&
                     youtubeQuotaSpent + YOUTUBE_SEARCH_COST <= YOUTUBE_DAILY_APP_BUDGET) {
@@ -3272,6 +3278,38 @@ function getOfficialVideoOverride(artist, song) {
                         }
                     } catch (error) {
                         console.log("YOUTUBE SECOND SEARCH UNAVAILABLE:", error.message);
+                    }
+                }
+
+                // Last discovery attempt: original title without overly restrictive
+                // "official"/"VEVO" qualifiers. Never play a bad result just because
+                // the API did not return an official video.
+                if (!hasArtistVideo(allSearchResults) &&
+                    youtubeQuotaSpent + YOUTUBE_SEARCH_COST <= YOUTUBE_DAILY_APP_BUDGET) {
+                    const plainQuery = [artist, noFeature || cleanSong || song, "music video"]
+                        .filter(Boolean).join(" ");
+                    const plainUrl = "https://www.googleapis.com/youtube/v3/search" +
+                        "?part=snippet&type=video&maxResults=35" +
+                        "&videoEmbeddable=true&videoSyndicated=true" +
+                        "&safeSearch=moderate&regionCode=US" +
+                        "&q=" + encodeURIComponent(plainQuery) +
+                        "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
+                    youtubeQuotaSpent += YOUTUBE_SEARCH_COST;
+                    console.log("YOUTUBE BROADER VIDEO SEARCH:", plainQuery,
+                        "| APP QUOTA:", youtubeQuotaSpent + "/" + YOUTUBE_DAILY_APP_BUDGET);
+                    try {
+                        const plainData = JSON.parse(await fetchText(plainUrl, 10000));
+                        if (Array.isArray(plainData.items)) {
+                            const seen = new Set(allSearchResults.map(i => i.id && i.id.videoId));
+                            for (const item of plainData.items) {
+                                if (item.id && item.id.videoId && !seen.has(item.id.videoId)) {
+                                    allSearchResults.push(item);
+                                    seen.add(item.id.videoId);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.log("YOUTUBE BROADER SEARCH UNAVAILABLE:", error.message);
                     }
                 }
 
