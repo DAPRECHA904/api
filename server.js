@@ -296,7 +296,11 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "the isley brothers - hello its me": "JHSxgcefIhM",
   "usher - there goes my baby": "m6urbZyHgO4",
   "mya - my love is like wo": "K4gcQj_NZ30",
-  "dru hill - these are the times": "6wPkC3DO_7Y"
+  "dru hill - these are the times": "6wPkC3DO_7Y",
+  // Manual video selected for Mary J. Blige — Not Gon Cry.
+  "mary j blige - not gon cry": "WiM3bGcXYxk",
+  "mary j blige - not goin cry": "WiM3bGcXYxk",
+  "mary j blige - not going to cry": "WiM3bGcXYxk"
 };
 
 function videoOverrideKey(artist, song) {
