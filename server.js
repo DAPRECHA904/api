@@ -70,6 +70,13 @@ app.get("/cloud.html", (req, res) => {
 
     let checking = false;
 
+    // A single stray/early radio title must not switch both TVs.
+    // Require two consecutive observations from the selected station.
+    let pendingRadioTitle = null;
+    let pendingRadioTitleCount = 0;
+    let pendingRadioTitleStream = null;
+    const RADIO_TITLE_CONFIRMATIONS = 2;
+
     // ======================================================
     // MASTER SONG SYNC CLOCK
     // ======================================================
@@ -2105,11 +2112,31 @@ function getOfficialVideoOverride(artist, song) {
                 cleanTitle(title);
 
 
-            if (
-                cleaned &&
-                cleaned !==
-                currentTitle
-            ) {
+            if (!cleaned) return;
+
+            if (cleaned === currentTitle) {
+                pendingRadioTitle = null;
+                pendingRadioTitleCount = 0;
+                pendingRadioTitleStream = null;
+                return;
+            }
+
+            if (pendingRadioTitle !== cleaned ||
+                pendingRadioTitleStream !== streamBeingChecked) {
+                pendingRadioTitle = cleaned;
+                pendingRadioTitleStream = streamBeingChecked;
+                pendingRadioTitleCount = 1;
+                console.log("RADIO TITLE CANDIDATE:", cleaned, "awaiting confirmation");
+                return;
+            }
+            pendingRadioTitleCount++;
+            if (pendingRadioTitleCount < RADIO_TITLE_CONFIRMATIONS) return;
+
+            pendingRadioTitle = null;
+            pendingRadioTitleCount = 0;
+            pendingRadioTitleStream = null;
+
+            if (cleaned !== currentTitle) {
 
                 // Invalidate async lyric/video work from the previous song.
                 songGeneration++;
@@ -3653,6 +3680,9 @@ function getOfficialVideoOverride(artist, song) {
 
 
             if (changed) {
+                pendingRadioTitle = null;
+                pendingRadioTitleCount = 0;
+                pendingRadioTitleStream = null;
 
                 // Immediately invalidate all async work from the old station.
                 songGeneration++;
