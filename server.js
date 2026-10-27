@@ -295,7 +295,8 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "bryson tiller - outside": "UkcOC8YEVMQ",
   "the isley brothers - hello its me": "JHSxgcefIhM",
   "usher - there goes my baby": "m6urbZyHgO4",
-  "mya - my love is like wo": "K4gcQj_NZ30"
+  "mya - my love is like wo": "K4gcQj_NZ30",
+  "dru hill - these are the times": "6wPkC3DO_7Y"
 };
 
 function videoOverrideKey(artist, song) {
@@ -339,7 +340,7 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const YOUTUBE_CACHE_SELECTION_VERSION = 4;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 5;
     function youtubeCacheValid(entry) {
         return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
             Number.isFinite(entry.cachedAt) &&
@@ -3080,7 +3081,9 @@ function getOfficialVideoOverride(artist, song) {
         // Without an attributable uploader, prefer no video over a false match.
         if (!artistChannel && !/\b(vevo|records|recordings)\b/.test(channel)) return -1000;
         if (/\b(lyric video|lyrics|lyrics on screen)\b/.test(title)) score -= 135;
-        if (/\b(audio|topic)\b/.test(title) || /\btopic\b/.test(channel)) score -= 90;
+        if (/\b(audio|topic)\b/.test(title)) score -= 90;
+        // Topic channels are auto-generated track audio, not official music videos.
+        if (/\btopic\b/.test(channel)) score -= 260;
         if (/\bvisualizer\b/.test(title)) score -= 65;
         if (/\blive\b/.test(title)) score -= 95;
 
