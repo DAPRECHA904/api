@@ -2280,12 +2280,12 @@ function getOfficialVideoOverride(artist, song) {
             )
 
             .replace(
-                /\s*\((?:radio edit|radio version|album version|clean|explicit)\)\s*/gi,
+                /\s*\((?:radio edit|radio version|album version|clean|clean version|dirty|dirty version|explicit|explicit version)\)\s*/gi,
                 " "
             )
 
             .replace(
-                /\s*\[(?:radio edit|radio version|album version|clean|explicit)\]\s*/gi,
+                /\s*\[(?:radio edit|radio version|album version|clean|clean version|dirty|dirty version|explicit|explicit version)\]\s*/gi,
                 " "
             )
 
@@ -2427,295 +2427,179 @@ function getOfficialVideoOverride(artist, song) {
     // ======================================================
 
     function normalizeLyricsText(value) {
-
-        return String(
-            value || ""
-        )
-            .toLowerCase()
-
-            .replace(
-                /&/g,
-                " and "
-            )
-
-            .replace(
-                /[^a-z0-9]+/g,
-                " "
-            )
-
-            .replace(
-                /\s+/g,
-                " "
-            )
-
-            .trim();
+        return String(value || "").normalize("NFKD")
+            .replace(/[\u0300-\u036f]/g, "").toLowerCase()
+            .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ")
+            .replace(/\s+/g, " ").trim();
     }
 
-
-    // ======================================================
-    // SCORE LRCLIB RESULT
-    // ======================================================
-
-    function scoreLyricsResult(
-        item,
-        wantedArtist,
-        wantedSong
-    ) {
-
-        if (!item)
-            return -1000;
-
-
-        let score = 0;
-
-
-        const resultArtist =
-            normalizeLyricsText(
-                item.artistName
-            );
-
-
-        const resultSong =
-            normalizeLyricsText(
-                item.trackName
-            );
-
-
-        const artist =
-            normalizeLyricsText(
-                wantedArtist
-            );
-
-
-        const song =
-            normalizeLyricsText(
-                wantedSong
-            );
-
-
-        // SONG
-
-        if (
-            resultSong === song
-        ) {
-
-            score += 150;
-        }
-
-        else if (
-            resultSong.includes(song) ||
-            song.includes(resultSong)
-        ) {
-
-            score += 80;
-        }
-
-
-        // ARTIST
-
-        if (
-            artist &&
-            resultArtist === artist
-        ) {
-
-            score += 150;
-        }
-
-        else if (
-            artist &&
-            (
-                resultArtist.includes(
-                    artist
-                ) ||
-                artist.includes(
-                    resultArtist
-                )
-            )
-        ) {
-
-            score += 70;
-        }
-
-
-        // Prefer synced lyrics
-
-        if (
-            item.syncedLyrics &&
-            item.syncedLyrics.trim()
-        ) {
-
-            score += 40;
-        }
-
-
-        // Plain lyrics
-
-        if (
-            item.plainLyrics &&
-            item.plainLyrics.trim()
-        ) {
-
-            score += 20;
-        }
-
-
-        // Instrumental penalty
-
-        if (
-            item.instrumental === true
-        ) {
-
-            score -= 200;
-        }
-
-
-        return score;
+    // Strip guest credits only for lookup, not for radio song-change timing.
+    function lyricsLeadArtist(artist) {
+        return String(artist || "")
+            .replace(/\s+(?:feat\.?|ft\.?|featuring)\s+.*$/i, "")
+            .replace(/\s+with\s+.+$/i, "").trim();
     }
 
+    function lyricsArtistVariants(artist) {
+        const raw = String(artist || "").trim();
+        if (!raw) return [];
+        const base = lyricsLeadArtist(raw);
+        const result = [];
+        for (const value of [base, raw,
+            /\s+(?:&|and|x|\+)\s+/i.test(base)
+                ? base.split(/\s+(?:&|and|x|\+)\s+/i)[0] : ""]) {
+            if (value && !result.some(s =>
+                normalizeLyricsText(s) === normalizeLyricsText(value))) result.push(value);
+        }
+        return result.slice(0, 3);
+    }
 
-    // ======================================================
-    // SEARCH ONE LRCLIB QUERY
-    // ======================================================
+    function lyricsArtistMatches(found, requested) {
+        if (!requested) return true;
+        const fullFound = normalizeLyricsText(found);
+        const fullWanted = normalizeLyricsText(requested);
+        if (!fullFound) return false;
+        if (fullFound === fullWanted) return true;
+        const baseFound = normalizeLyricsText(lyricsLeadArtist(found));
+        const baseWanted = normalizeLyricsText(lyricsLeadArtist(requested));
+        if (baseFound && baseFound === baseWanted) return true;
+        // Collabs sometimes credit the lead artist alone, or both artists.
+        // Only compare whole lead-artist names, never arbitrary substrings.
+        const main = x => normalizeLyricsText(
+            lyricsLeadArtist(x).split(/\s+(?:&|and|x|\+)\s+/i)[0]);
+        const leadFound = main(found), leadWanted = main(requested);
+        return Boolean(leadFound && leadFound === leadWanted &&
+            (baseFound === leadFound || baseWanted === leadWanted));
+    }
 
-    // LRCLIB's structured artist/title search avoids the 20-result limit
-    // returning unrelated tracks. Generic search remains a fallback.
-    async function searchLRCLIBQuery(query, artist, song, structured = false) {
+    function lyricsSongMatches(found, wanted) {
+        const norm = s => normalizeLyricsText(
+            removeFeaturedArtists(removeVersionInfo(s)));
+        return Boolean(norm(found) && norm(found) === norm(wanted));
+    }
+
+    function scoreLyricsResult(item, wantedArtist, wantedSong) {
+        if (!item || item.instrumental ||
+            !(item.syncedLyrics || item.plainLyrics) ||
+            !lyricsArtistMatches(item.artistName, wantedArtist) ||
+            !lyricsSongMatches(item.trackName, wantedSong)) return -1000;
+
+        return 180 +
+            (normalizeLyricsText(item.trackName) === normalizeLyricsText(wantedSong) ? 20 : 0) +
+            (normalizeLyricsText(item.artistName) === normalizeLyricsText(wantedArtist) ? 140 : 105) +
+            (item.syncedLyrics && item.syncedLyrics.trim() ? 40 : 0) +
+            (item.plainLyrics && item.plainLyrics.trim() ? 12 : 0);
+    }
+
+    // Use LRCLIB's documented exact-get and structured/keyword search APIs.
+    async function searchLRCLIBQuery(query, artist, song, mode = "structured") {
         const params = new URLSearchParams();
-        if (structured && artist) {
+        if (mode === "keyword") params.set("q", query);
+        else {
             params.set("track_name", song);
-            params.set("artist_name", artist);
-        } else {
-            params.set("q", query);
+            if (artist) params.set("artist_name", artist);
         }
-        const url = "https://lrclib.net/api/search?" + params.toString();
-        console.log("LRCLIB TRY:", structured ? "structured" : "keyword", query);
-
-        let text;
-        let lastError = null;
+        const url = "https://lrclib.net/api/" +
+            (mode === "exact" ? "get?" : "search?") + params.toString();
+        console.log("LRCLIB TRY:", mode, query);
+        let body;
         for (let attempt = 0; attempt < 2; attempt++) {
-            const waitForCooldown = Math.max(0, lrclibBlockedUntil - Date.now());
-            if (waitForCooldown > 0) {
-                // Do not hammer LRCLIB during a rate-limit/backoff period.
-                if (waitForCooldown > 5000) {
-                    const cooldown = new Error("LRCLIB cooldown active");
-                    cooldown.retryable = true;
-                    throw cooldown;
-                }
-                await lyricsDelay(waitForCooldown);
+            const wait = Math.max(0, lrclibBlockedUntil - Date.now());
+            if (wait > 5000) {
+                const error = new Error("LRCLIB cooldown active");
+                error.retryable = true;
+                throw error;
             }
-            await lyricsDelay(Math.max(0, 300 - (Date.now() - lastLrclibRequestAt)));
+            if (wait) await lyricsDelay(wait);
+            await lyricsDelay(Math.max(0, 400 - (Date.now() - lastLrclibRequestAt)));
             lastLrclibRequestAt = Date.now();
             try {
-                text = await fetchText(url, 10000);
+                body = await fetchText(url, 10000);
                 break;
             } catch (error) {
-                lastError = error;
                 const code = Number(error.statusCode || 0);
+                console.log("LRCLIB REQUEST FAILED:", error.message, "MODE:", mode);
+                if (code === 404 || code === 400) return null;
                 const transient = code === 429 || code >= 500 || code === 0;
-                console.log("LRCLIB REQUEST FAILED:", error.message);
                 if (!transient) return null;
                 error.retryable = true;
                 if (code === 429 || code === 503) {
-                    const backoff = Math.max(1000, error.retryAfterMs || 1000);
-                    lrclibBlockedUntil = Math.max(lrclibBlockedUntil, Date.now() + backoff);
+                    lrclibBlockedUntil = Math.max(
+                        lrclibBlockedUntil, Date.now() +
+                        Math.max(1000, error.retryAfterMs || 1000));
                 }
-                if (attempt === 1 || lrclibBlockedUntil - Date.now() > 5000) throw error;
-                await lyricsDelay(code === 429 || code === 503 ? 0 : 800);
+                if (attempt > 0 || lrclibBlockedUntil - Date.now() > 5000) throw error;
+                if (code !== 429 && code !== 503) await lyricsDelay(700);
             }
         }
-        if (!text) throw lastError || new Error("Empty LRCLIB response");
         let results;
         try {
-            results = JSON.parse(text);
+            const parsed = JSON.parse(body);
+            results = mode === "exact" ? [parsed] : parsed;
+            if (!Array.isArray(results)) throw new Error("Invalid LRCLIB response");
         } catch (error) {
             error.retryable = true;
-            console.log("LRCLIB INVALID JSON:", query);
+            console.log("LRCLIB INVALID RESPONSE:", error.message);
             throw error;
         }
-        if (!Array.isArray(results) || results.length === 0) {
-            console.log("LRCLIB NO RESULTS:", query);
+        let best = null, bestScore = -1000;
+        for (const item of results) {
+            const score = scoreLyricsResult(item, artist, song);
+            if (score > bestScore) {best = item; bestScore = score;}
+        }
+        if (!best || bestScore < 0) {
+            console.log("LRCLIB NO SAFE MATCH:", query);
             return null;
         }
-        let best = null;
-        let bestScore = -1000;
-        const wantedArtist = normalizeLyricsText(artist);
-        const wantedSong = normalizeLyricsText(song);
-        for (const item of results) {
-            if (!item || item.instrumental ||
-                !(item.syncedLyrics || item.plainLyrics)) continue;
-            const foundArtist = normalizeLyricsText(item.artistName);
-            const foundSong = normalizeLyricsText(item.trackName);
-            // A title alone must NEVER select another artist's lyrics.
-            const sameArtist = !wantedArtist ||
-                foundArtist === wantedArtist ||
-                (" " + foundArtist + " ").includes(" " + wantedArtist + " ") ||
-                (" " + wantedArtist + " ").includes(" " + foundArtist + " ");
-            const sameSong = foundSong === wantedSong ||
-                (wantedSong.length >= 5 && foundSong.startsWith(wantedSong + " ")) ||
-                (foundSong.length >= 5 && wantedSong.startsWith(foundSong + " "));
-            if (!sameArtist || !sameSong) continue;
-            const score = scoreLyricsResult(item, artist, song);
-            if (score > bestScore) {
-                best = item;
-                bestScore = score;
-            }
-        }
-        if (!best) return null;
-        console.log("LRCLIB SAFE MATCH:", best.artistName, "-", best.trackName, "SCORE:", bestScore);
+        console.log("LRCLIB SAFE MATCH:", best.artistName, "-", best.trackName,
+            "SCORE:", bestScore);
         return {item: best, score: bestScore};
     }
 
     async function searchLRCLIB(artist, originalSong) {
         if (!originalSong) return null;
-        const variants = createSongVariants(originalSong).slice(0, 5);
-        console.log("LRCLIB SMART SEARCH:", artist, "-", originalSong, "VARIANTS:", variants);
-        let bestOverall = null;
-        let bestOverallScore = -1000;
-        let lastError = null;
-        let requestsMade = 0;
-        // Search the precise artist/title first; only use broad searches
-        // for candidates that still pass strict artist AND title matching.
-        for (const song of variants) {
-            const queries = artist
-                ? [
-                    {query: artist + " " + song, structured: true},
-                    {query: artist + " " + song, structured: false},
-                    {query: song, structured: false}
-                  ]
-                : [{query: song, structured: false}];
-            for (const query of queries) {
-                if (requestsMade >= 8) break;
-                requestsMade++;
-                try {
-                    const match = await searchLRCLIBQuery(
-                        query.query, artist, song, query.structured
-                    );
-                    if (!match) continue;
-                    if (match.score > bestOverallScore) {
-                        bestOverall = match.item;
-                        bestOverallScore = match.score;
-                    }
-                    if (match.score >= 300) {
-                        console.log("LRCLIB STRONG MATCH FOUND");
-                        return match.item;
-                    }
-                } catch (error) {
-                    lastError = error;
-                    // After a 429, respect Retry-After rather than trying
-                    // every query and risking a prolonged rate-limit.
-                    if (Number(error.statusCode) === 429) break;
+        const variants = createSongVariants(originalSong).slice(0, 4);
+        const artists = lyricsArtistVariants(artist);
+        console.log("LRCLIB SMART SEARCH:", artist, "-", originalSong,
+            "| ARTIST VARIANTS:", artists, "| SONG VARIANTS:", variants);
+        let best = null, bestScore = -1000, errorSeen = null, requests = 0;
+        const tried = new Set();
+        async function tryLookup(mode, a, song) {
+            const query = [a, song].filter(Boolean).join(mode === "keyword" ? " " : " - ");
+            const key = mode + "|" + normalizeLyricsText(query);
+            if (tried.has(key) || requests >= 10) return;
+            tried.add(key);
+            requests++;
+            try {
+                const found = await searchLRCLIBQuery(query, a, song, mode);
+                if (found && found.score > bestScore) {
+                    best = found.item; bestScore = found.score;
                 }
+            } catch (error) {
+                errorSeen = error;
             }
-            if (bestOverall && bestOverallScore >= 130) break;
-            if (requestsMade >= 8 || (lastError && Number(lastError.statusCode) === 429)) break;
         }
-        if (bestOverall && bestOverallScore >= 130) {
-            console.log("LRCLIB BEST SAFE MATCH:", bestOverall.artistName,
-                "-", bestOverall.trackName, "SCORE:", bestOverallScore);
-            return bestOverall;
+        for (const song of variants) {
+            if (artists.length) {
+                for (const a of artists) {
+                    await tryLookup("exact", a, song);
+                    if (bestScore >= 300) return best;
+                    if (errorSeen && errorSeen.retryable) break;
+                    await tryLookup("structured", a, song);
+                    if (bestScore >= 300) return best;
+                    if (errorSeen && errorSeen.retryable) break;
+                }
+                if (errorSeen && errorSeen.retryable) break;
+                await tryLookup("keyword", artists[0], song);
+            } else {
+                await tryLookup("keyword", "", song);
+            }
+            if (bestScore >= 300 || requests >= 10 ||
+                (errorSeen && errorSeen.retryable)) break;
         }
-        if (lastError) throw lastError;
-        console.log("LRCLIB: NO SAFE MATCH FOUND");
+        if (best && bestScore >= 260) return best;
+        if (errorSeen) throw errorSeen;
+        console.log("LRCLIB: NO VERIFIED MATCH FOUND");
         return null;
     }
 
