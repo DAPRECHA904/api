@@ -1628,6 +1628,11 @@ let currentLyricIndex = -1;
 
 let lyricsMode = "waiting";
 
+// Retry temporary lyric failures during the same track, not only on a song change.
+// All lyric TVs retain the existing server-driven karaoke clock.
+let lyricRetryAt = 0;
+let lyricsRequestTrack = null;
+
 let plainLyricsLines = [];
 
 let plainIndex = 0;
@@ -2121,6 +2126,9 @@ function stopPlainLyrics() {
 async function loadLyrics(
     trackTitle
 ) {
+    if (lyricsRequestTrack === trackTitle) return;
+    lyricsRequestTrack = trackTitle;
+    lyricRetryAt = Date.now() + 45000;
 
     const status =
         document.getElementById(
@@ -2157,6 +2165,7 @@ async function loadLyrics(
             );
 
 
+        if (!response.ok) throw new Error("Lyrics HTTP " + response.status);
         const data =
             await response.json();
 
@@ -2285,9 +2294,10 @@ async function loadLyrics(
             NO LYRICS
         */
 
-        lyricsMode =
-            "unavailable";
-
+        lyricsMode = data.status === "error" ? "error" : "unavailable";
+        lyricRetryAt = Date.now() + (
+            data.status === "error" ? 20000 : 45000
+        );
 
         lyricLines = [];
 
@@ -2303,7 +2313,9 @@ async function loadLyrics(
 
             "",
 
-            "Lyrics unavailable for this track.",
+            data.status === "error"
+                ? "Lyrics temporarily unavailable."
+                : "Lyrics unavailable for this track.",
 
             "Enjoy the music ♪"
         );
@@ -2315,6 +2327,7 @@ async function loadLyrics(
         lyricsMode =
             "error";
 
+        lyricRetryAt = Date.now() + 20000;
 
         lyricLines = [];
 
@@ -2334,6 +2347,10 @@ async function loadLyrics(
 
             "Enjoy the music ♪"
         );
+    } finally {
+        if (lyricsRequestTrack === trackTitle) {
+            lyricsRequestTrack = null;
+        }
     }
 }
 
@@ -2454,9 +2471,16 @@ async function updateNowPlaying() {
                 );
 
 
+            lyricRetryAt = 0;
             loadLyrics(
                 data.title
             );
+        } else if (
+            (lyricsMode === "unavailable" || lyricsMode === "error") &&
+            Date.now() >= lyricRetryAt &&
+            lyricsRequestTrack !== data.title
+        ) {
+            loadLyrics(data.title);
         }
     }
 
