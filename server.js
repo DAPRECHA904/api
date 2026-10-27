@@ -339,7 +339,7 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const YOUTUBE_CACHE_SELECTION_VERSION = 3;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 4;
     function youtubeCacheValid(entry) {
         return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
             Number.isFinite(entry.cachedAt) &&
@@ -3067,12 +3067,18 @@ function getOfficialVideoOverride(artist, song) {
             compactChannel === compactArtist + "official" ||
             compactChannel === compactArtist + "music";
         if (title.startsWith(wantedArtist + " " + wantedSong)) score += 55;
-        if (/\bofficial (music )?video\b|\bofficial mv\b/.test(title)) score += 350;
+        // A title saying "Official Video" is not proof of official ownership.
+        const declaresOfficial = /\bofficial (music )?video\b|\bofficial mv\b/.test(title);
+        const artistChannel = officialChannel || hasVideoPhrase(channel, wantedArtist);
+        if (declaresOfficial && artistChannel) score += 350;
+        else if (declaresOfficial) score += 35;
         if (/\bofficial visualizer\b/.test(title)) score += 35;
         if (officialChannel) score += 220;
         if (/\bofficial (music )?video\b/.test(title) && officialChannel) score += 160;
         if (compactChannel === compactArtist + "vevo") score += 35;
         if (/\b(vevo|records|recordings|entertainment)\b/.test(channel)) score += 12;
+        // Without an attributable uploader, prefer no video over a false match.
+        if (!artistChannel && !/\b(vevo|records|recordings)\b/.test(channel)) return -1000;
         if (/\b(lyric video|lyrics|lyrics on screen)\b/.test(title)) score -= 135;
         if (/\b(audio|topic)\b/.test(title) || /\btopic\b/.test(channel)) score -= 90;
         if (/\bvisualizer\b/.test(title)) score -= 65;
