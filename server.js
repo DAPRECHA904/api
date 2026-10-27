@@ -3207,7 +3207,6 @@ function getOfficialVideoOverride(artist, song) {
                 "&type=video" +
                 "&maxResults=35" +
                 "&videoEmbeddable=true" +
-                "&videoSyndicated=true" +
                 "&safeSearch=moderate" +
                 "&regionCode=US" +
                 "&q=" + encodeURIComponent(query) +
@@ -3252,7 +3251,7 @@ function getOfficialVideoOverride(artist, song) {
                         "VEVO official video"].filter(Boolean).join(" ");
                     const extraUrl = "https://www.googleapis.com/youtube/v3/search" +
                         "?part=snippet&type=video&maxResults=35" +
-                        "&videoEmbeddable=true&videoSyndicated=true" +
+                        "&videoEmbeddable=true" +
                         "&safeSearch=moderate&regionCode=US" +
                         "&q=" + encodeURIComponent(extraQuery) +
                         "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
@@ -3284,7 +3283,7 @@ function getOfficialVideoOverride(artist, song) {
                         .filter(Boolean).join(" ");
                     const plainUrl = "https://www.googleapis.com/youtube/v3/search" +
                         "?part=snippet&type=video&maxResults=35" +
-                        "&videoEmbeddable=true&videoSyndicated=true" +
+                        "&videoEmbeddable=true" +
                         "&safeSearch=moderate&regionCode=US" +
                         "&q=" + encodeURIComponent(plainQuery) +
                         "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
