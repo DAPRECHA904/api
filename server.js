@@ -260,6 +260,19 @@ app.get("/cloud.html", (req, res) => {
         updated: 0
     };
 
+    // One lookup for all lyric TVs, short-lived negative caches, and
+    // reusable successful lyrics when a track plays again.
+    const lyricsInFlight = new Map();
+    const reusableLyricsCache = new Map();
+    const LYRICS_NOT_FOUND_RETRY_MS = 45000;
+    const LYRICS_ERROR_RETRY_MS = 20000;
+    const LYRICS_SAVED_LIMIT = 120;
+    let lrclibBlockedUntil = 0;
+    let lastLrclibRequestAt = 0;
+
+    const lyricsDelay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+
     // YOUTUBE MUSIC VIDEO
     const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || "";
 
@@ -707,7 +720,9 @@ function getOfficialVideoOverride(artist, song) {
                 headers: {
 
                     "User-Agent":
-                        "SlowTideLyricsTV/1.0",
+                        url.hostname === "lrclib.net"
+                            ? "SlowTideLyricsTV/1.1 (https://slowtide-now-playing.onrender.com)"
+                            : "SlowTideLyricsTV/1.0",
 
                     "Accept":
                         "text/html,application/json,text/plain,*/*",
@@ -766,12 +781,17 @@ function getOfficialVideoOverride(artist, song) {
 
                             response.resume();
 
-                            reject(
-                                new Error(
-                                    "HTTP " +
-                                    response.statusCode
-                                )
-                            );
+                            const failure = new Error("HTTP " + response.statusCode);
+                            failure.statusCode = response.statusCode;
+                            const retryHeader = response.headers["retry-after"];
+                            if (retryHeader) {
+                                const seconds = Number(retryHeader);
+                                const delayMs = Number.isFinite(seconds)
+                                    ? Math.max(0, seconds * 1000)
+                                    : Math.max(0, Date.parse(retryHeader) - Date.now());
+                                if (Number.isFinite(delayMs)) failure.retryAfterMs = delayMs;
+                            }
+                            reject(failure);
 
                             return;
                         }
@@ -2585,295 +2605,155 @@ function getOfficialVideoOverride(artist, song) {
     // SEARCH ONE LRCLIB QUERY
     // ======================================================
 
-    async function searchLRCLIBQuery(
-        query,
-        artist,
-        song
-    ) {
-
-        const url =
-            "https://lrclib.net/api/search?q=" +
-            encodeURIComponent(query);
-
-
-        console.log(
-            "LRCLIB TRY:",
-            query
-        );
-
+    // LRCLIB's structured artist/title search avoids the 20-result limit
+    // returning unrelated tracks. Generic search remains a fallback.
+    async function searchLRCLIBQuery(query, artist, song, structured = false) {
+        const params = new URLSearchParams();
+        if (structured && artist) {
+            params.set("track_name", song);
+            params.set("artist_name", artist);
+        } else {
+            params.set("q", query);
+        }
+        const url = "https://lrclib.net/api/search?" + params.toString();
+        console.log("LRCLIB TRY:", structured ? "structured" : "keyword", query);
 
         let text;
-
-
-        try {
-
-            text =
-                await fetchText(
-                    url,
-                    10000
-                );
-        }
-
-        catch (error) {
-
-            console.log(
-                "LRCLIB REQUEST FAILED:",
-                error.message
-            );
-
-            return null;
-        }
-
-
-        let results;
-
-
-        try {
-
-            results =
-                JSON.parse(text);
-        }
-
-        catch (error) {
-
-            console.log(
-                "LRCLIB INVALID JSON"
-            );
-
-            return null;
-        }
-
-
-        if (
-            !Array.isArray(results) ||
-            results.length === 0
-        ) {
-
-            console.log(
-                "LRCLIB NO RESULTS:",
-                query
-            );
-
-            return null;
-        }
-
-
-        let best = null;
-
-        let bestScore =
-            -1000;
-
-
-        for (
-            const item of results
-        ) {
-
-            const score =
-                scoreLyricsResult(
-                    item,
-                    artist,
-                    song
-                );
-
-
-            if (
-                score >
-                bestScore
-            ) {
-
-                bestScore =
-                    score;
-
-                best =
-                    item;
+        let lastError = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            const waitForCooldown = Math.max(0, lrclibBlockedUntil - Date.now());
+            if (waitForCooldown > 0) {
+                // Do not hammer LRCLIB during a rate-limit/backoff period.
+                if (waitForCooldown > 5000) {
+                    const cooldown = new Error("LRCLIB cooldown active");
+                    cooldown.retryable = true;
+                    throw cooldown;
+                }
+                await lyricsDelay(waitForCooldown);
+            }
+            await lyricsDelay(Math.max(0, 300 - (Date.now() - lastLrclibRequestAt)));
+            lastLrclibRequestAt = Date.now();
+            try {
+                text = await fetchText(url, 10000);
+                break;
+            } catch (error) {
+                lastError = error;
+                const code = Number(error.statusCode || 0);
+                const transient = code === 429 || code >= 500 || code === 0;
+                console.log("LRCLIB REQUEST FAILED:", error.message);
+                if (!transient) return null;
+                error.retryable = true;
+                if (code === 429 || code === 503) {
+                    const backoff = Math.max(1000, error.retryAfterMs || 1000);
+                    lrclibBlockedUntil = Math.max(lrclibBlockedUntil, Date.now() + backoff);
+                }
+                if (attempt === 1 || lrclibBlockedUntil - Date.now() > 5000) throw error;
+                await lyricsDelay(code === 429 || code === 503 ? 0 : 800);
             }
         }
-
-
-        if (!best)
+        if (!text) throw lastError || new Error("Empty LRCLIB response");
+        let results;
+        try {
+            results = JSON.parse(text);
+        } catch (error) {
+            error.retryable = true;
+            console.log("LRCLIB INVALID JSON:", query);
+            throw error;
+        }
+        if (!Array.isArray(results) || results.length === 0) {
+            console.log("LRCLIB NO RESULTS:", query);
             return null;
-
-
-        console.log(
-            "LRCLIB POSSIBLE MATCH:",
-            best.artistName,
-            "-",
-            best.trackName,
-            "SCORE:",
-            bestScore
-        );
-
-
-        return {
-            item: best,
-            score: bestScore
-        };
+        }
+        let best = null;
+        let bestScore = -1000;
+        const wantedArtist = normalizeLyricsText(artist);
+        const wantedSong = normalizeLyricsText(song);
+        for (const item of results) {
+            if (!item || item.instrumental ||
+                !(item.syncedLyrics || item.plainLyrics)) continue;
+            const foundArtist = normalizeLyricsText(item.artistName);
+            const foundSong = normalizeLyricsText(item.trackName);
+            // A title alone must NEVER select another artist's lyrics.
+            const sameArtist = !wantedArtist ||
+                foundArtist === wantedArtist ||
+                (" " + foundArtist + " ").includes(" " + wantedArtist + " ") ||
+                (" " + wantedArtist + " ").includes(" " + foundArtist + " ");
+            const sameSong = foundSong === wantedSong ||
+                (wantedSong.length >= 5 && foundSong.startsWith(wantedSong + " ")) ||
+                (foundSong.length >= 5 && wantedSong.startsWith(foundSong + " "));
+            if (!sameArtist || !sameSong) continue;
+            const score = scoreLyricsResult(item, artist, song);
+            if (score > bestScore) {
+                best = item;
+                bestScore = score;
+            }
+        }
+        if (!best) return null;
+        console.log("LRCLIB SAFE MATCH:", best.artistName, "-", best.trackName, "SCORE:", bestScore);
+        return {item: best, score: bestScore};
     }
 
-
-    // ======================================================
-    // SMART LRCLIB SEARCH
-    // ======================================================
-
-    async function searchLRCLIB(
-        artist,
-        originalSong
-    ) {
-
-        if (!originalSong)
-            return null;
-
-
-        const variants =
-            createSongVariants(
-                originalSong
-            );
-
-
-        console.log(
-            "================================"
-        );
-
-        console.log(
-            "LRCLIB SMART SEARCH"
-        );
-
-        console.log(
-            "ARTIST:",
-            artist
-        );
-
-        console.log(
-            "ORIGINAL SONG:",
-            originalSong
-        );
-
-        console.log(
-            "VARIANTS:",
-            variants
-        );
-
-        console.log(
-            "================================"
-        );
-
-
+    async function searchLRCLIB(artist, originalSong) {
+        if (!originalSong) return null;
+        const variants = createSongVariants(originalSong).slice(0, 5);
+        console.log("LRCLIB SMART SEARCH:", artist, "-", originalSong, "VARIANTS:", variants);
         let bestOverall = null;
-
-        let bestOverallScore =
-            -1000;
-
-
-        // --------------------------------------------------
-        // TRY EVERY TITLE VERSION
-        // --------------------------------------------------
-
-        for (
-            const song of variants
-        ) {
-
-            const queries = [];
-
-
-            // Artist + Song
-            if (artist) {
-
-                queries.push(
-                    artist +
-                    " " +
-                    song
-                );
-            }
-
-
-            // Song only
-            queries.push(song);
-
-
-            for (
-                const query of queries
-            ) {
-
-                const result =
-                    await searchLRCLIBQuery(
-                        query,
-                        artist,
-                        song
+        let bestOverallScore = -1000;
+        let lastError = null;
+        let requestsMade = 0;
+        // Search the precise artist/title first; only use broad searches
+        // for candidates that still pass strict artist AND title matching.
+        for (const song of variants) {
+            const queries = artist
+                ? [
+                    {query: artist + " " + song, structured: true},
+                    {query: artist + " " + song, structured: false},
+                    {query: song, structured: false}
+                  ]
+                : [{query: song, structured: false}];
+            for (const query of queries) {
+                if (requestsMade >= 8) break;
+                requestsMade++;
+                try {
+                    const match = await searchLRCLIBQuery(
+                        query.query, artist, song, query.structured
                     );
-
-
-                if (!result)
-                    continue;
-
-
-                if (
-                    result.score >
-                    bestOverallScore
-                ) {
-
-                    bestOverall =
-                        result.item;
-
-                    bestOverallScore =
-                        result.score;
-                }
-
-
-                // Strong match.
-                // Stop searching.
-
-                if (
-                    result.score >= 300
-                ) {
-
-                    console.log(
-                        "LRCLIB STRONG MATCH FOUND"
-                    );
-
-
-                    return result.item;
+                    if (!match) continue;
+                    if (match.score > bestOverallScore) {
+                        bestOverall = match.item;
+                        bestOverallScore = match.score;
+                    }
+                    if (match.score >= 300) {
+                        console.log("LRCLIB STRONG MATCH FOUND");
+                        return match.item;
+                    }
+                } catch (error) {
+                    lastError = error;
+                    // After a 429, respect Retry-After rather than trying
+                    // every query and risking a prolonged rate-limit.
+                    if (Number(error.statusCode) === 429) break;
                 }
             }
+            if (bestOverall && bestOverallScore >= 130) break;
+            if (requestsMade >= 8 || (lastError && Number(lastError.statusCode) === 429)) break;
         }
-
-
-        // --------------------------------------------------
-        // ACCEPT GOOD FALLBACK
-        // --------------------------------------------------
-
-        if (
-            bestOverall &&
-            bestOverallScore >= 130
-        ) {
-
-            console.log(
-                "LRCLIB BEST FALLBACK:",
-                bestOverall.artistName,
-                "-",
-                bestOverall.trackName,
-                "SCORE:",
-                bestOverallScore
-            );
-
-
+        if (bestOverall && bestOverallScore >= 130) {
+            console.log("LRCLIB BEST SAFE MATCH:", bestOverall.artistName,
+                "-", bestOverall.trackName, "SCORE:", bestOverallScore);
             return bestOverall;
         }
-
-
-        console.log(
-            "LRCLIB: NO SAFE MATCH FOUND"
-        );
-
-
+        if (lastError) throw lastError;
+        console.log("LRCLIB: NO SAFE MATCH FOUND");
         return null;
     }
 
 
     // ======================================================
     // GET CURRENT LYRICS
+
     // ======================================================
 
-    async function getCurrentLyrics() {
+    async function resolveCurrentLyrics() {
 
         const title =
             currentTitle;
@@ -2915,13 +2795,15 @@ function getOfficialVideoOverride(artist, song) {
         // CACHE
         // --------------------------------------------------
 
-        if (
-            lyricsCache.title ===
-                title &&
-            lyricsCache.result
-        ) {
-
-            return lyricsCache.result;
+        if (lyricsCache.title === title && lyricsCache.result) {
+            const ttl = lyricsCache.result.success
+                ? Infinity
+                : (lyricsCache.result.status === "error"
+                    ? LYRICS_ERROR_RETRY_MS
+                    : LYRICS_NOT_FOUND_RETRY_MS);
+            if (Date.now() - lyricsCache.updated < ttl) {
+                return lyricsCache.result;
+            }
         }
 
 
@@ -2951,6 +2833,16 @@ function getOfficialVideoOverride(artist, song) {
             };
         }
 
+
+        const trackKey = normalizeLyricsText(info.artist) + "|" +
+            normalizeLyricsText(removeVersionInfo(info.song));
+        const previouslyFound = reusableLyricsCache.get(trackKey);
+        if (previouslyFound) {
+            const result = {...previouslyFound, artist: info.artist,
+                song: info.song, title: title};
+            lyricsCache = {title, result, updated: Date.now()};
+            return result;
+        }
 
         try {
 
@@ -3143,6 +3035,13 @@ function getOfficialVideoOverride(artist, song) {
                     Date.now()
             };
 
+            if (result.success) {
+                reusableLyricsCache.delete(trackKey);
+                reusableLyricsCache.set(trackKey, result);
+                if (reusableLyricsCache.size > LYRICS_SAVED_LIMIT) {
+                    reusableLyricsCache.delete(reusableLyricsCache.keys().next().value);
+                }
+            }
 
             console.log(
                 "LYRICS READY:",
@@ -3164,31 +3063,38 @@ function getOfficialVideoOverride(artist, song) {
             );
 
 
-            return {
-
+            const failed = {
                 success: false,
-
-                status:
-                    "error",
-
-                artist:
-                    info.artist,
-
-                song:
-                    info.song,
-
-                title:
-                    title,
-
-                message:
-                    "Lyrics service temporarily unavailable.",
-
-                source:
-                    "LRCLIB"
+                status: "error",
+                artist: info.artist,
+                song: info.song,
+                title,
+                message: "Lyrics service temporarily unavailable; retrying automatically.",
+                retryAfterSeconds: Math.ceil(LYRICS_ERROR_RETRY_MS / 1000),
+                source: "LRCLIB"
             };
+            // A temporary failure must not remain cached for an entire track.
+            if (generation === songGeneration && stream === currentStream &&
+                title === currentTitle) {
+                lyricsCache = {title, result: failed, updated: Date.now()};
+            }
+            return failed;
         }
     }
 
+
+
+    // Deduplicate simultaneous requests from multiple in-world TVs.
+    // Keep the karaoke clock completely separate from lookup retries.
+    function getCurrentLyrics() {
+        const key = songGeneration + "|" + currentStream + "|" + currentTitle;
+        if (lyricsInFlight.has(key)) return lyricsInFlight.get(key);
+        const pending = resolveCurrentLyrics().finally(() => {
+            if (lyricsInFlight.get(key) === pending) lyricsInFlight.delete(key);
+        });
+        lyricsInFlight.set(key, pending);
+        return pending;
+    }
 
 
     // ======================================================
