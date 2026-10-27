@@ -293,7 +293,8 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "the weeknd - earned it": "waU75jdUnYw",
   "the weeknd - earned it fifty shades of grey": "waU75jdUnYw",
   "bryson tiller - outside": "UkcOC8YEVMQ",
-  "the isley brothers - hello its me": "JHSxgcefIhM"
+  "the isley brothers - hello its me": "JHSxgcefIhM",
+  "usher - there goes my baby": "m6urbZyHgO4"
 };
 
 function videoOverrideKey(artist, song) {
@@ -337,7 +338,7 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const YOUTUBE_CACHE_SELECTION_VERSION = 2;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 3;
     function youtubeCacheValid(entry) {
         return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
             Number.isFinite(entry.cachedAt) &&
@@ -3063,8 +3064,10 @@ function getOfficialVideoOverride(artist, song) {
             compactChannel === compactArtist + "official" ||
             compactChannel === compactArtist + "music";
         if (title.startsWith(wantedArtist + " " + wantedSong)) score += 55;
-        if (/\bofficial (music )?video\b|\bofficial visualizer\b|\bofficial mv\b/.test(title)) score += 110;
-        if (officialChannel) score += 110;
+        if (/\bofficial (music )?video\b|\bofficial mv\b/.test(title)) score += 350;
+        if (/\bofficial visualizer\b/.test(title)) score += 35;
+        if (officialChannel) score += 220;
+        if (/\bofficial (music )?video\b/.test(title) && officialChannel) score += 160;
         if (compactChannel === compactArtist + "vevo") score += 35;
         if (/\b(vevo|records|recordings|entertainment)\b/.test(channel)) score += 12;
         if (/\b(lyric video|lyrics|lyrics on screen)\b/.test(title)) score -= 135;
