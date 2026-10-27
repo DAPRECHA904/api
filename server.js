@@ -298,6 +298,9 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "mya - my love is like wo": "K4gcQj_NZ30",
   "dru hill - these are the times": "6wPkC3DO_7Y",
   "heather headley - i wish i wasnt": "8oz716XcQqU",
+  "tyrese - how you gonna act like that": "y3HbIHGnSR4",
+  "michael jackson - another part of me": "8vwHQNQ88cM",
+  "michael jackson - another part of me 2012 remaster": "8vwHQNQ88cM",
   // Manual video selected for Mary J. Blige — Not Gon Cry.
   "mary j blige - not gon cry": "WiM3bGcXYxk",
   "mary j blige - not goin cry": "WiM3bGcXYxk",
@@ -316,7 +319,7 @@ function getOfficialVideoOverride(artist, song) {
   // Normalize stored override keys too: videoOverrideKey removes punctuation.
   const exact = videoOverrideKey(artist, song);
   const wantedArtist = normalizeVideoText(artist);
-  const wantedSong = normalizeVideoText(removeFeaturedArtists(removeVersionInfo(song)));
+  const wantedSong = normalizeVideoText(removeFeaturedArtists(removeVersionInfo(song).replace(/\s*[([]\s*(?:\d{4}\s*)?(?:re-?master(?:ed)?|anniversary edition)(?:\s+version)?\s*[)\]]/gi, "")));
   if (!wantedArtist || !wantedSong) return null;
 
   for (const [key, videoId] of Object.entries(OFFICIAL_VIDEO_OVERRIDES)) {
@@ -345,7 +348,7 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const YOUTUBE_CACHE_SELECTION_VERSION = 6;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 7;
     function youtubeCacheValid(entry) {
         return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
             Number.isFinite(entry.cachedAt) &&
@@ -3042,7 +3045,7 @@ function getOfficialVideoOverride(artist, song) {
         const title = normalizeVideoText(item.snippet.title);
         const channel = normalizeVideoText(item.snippet.channelTitle);
         const wantedArtist = normalizeVideoText(artist);
-        const wantedSong = normalizeVideoText(removeFeaturedArtists(removeVersionInfo(song)));
+        const wantedSong = normalizeVideoText(removeFeaturedArtists(removeVersionInfo(song).replace(/\s*[([]\s*(?:\d{4}\s*)?(?:re-?master(?:ed)?|anniversary edition)(?:\s+version)?\s*[)\]]/gi, "")));
         if (!wantedArtist || !wantedSong ||
             !hasVideoPhrase(title, wantedSong) ||
             !videoArtistMatches(title, channel, wantedArtist)) return -1000;
@@ -3174,7 +3177,9 @@ function getOfficialVideoOverride(artist, song) {
         }
 
         const searchPromise = (async () => {
-            const cleanSong = removeVersionInfo(song);
+            const cleanSong = removeVersionInfo(song)
+                .replace(/\s*[([]\s*(?:\d{4}\s*)?(?:re-?master(?:ed)?|anniversary edition)(?:\s+version)?\s*[)\]]/gi, "")
+                .trim();
             const noFeature = removeFeaturedArtists(cleanSong);
 
             const query = [
