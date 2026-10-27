@@ -303,6 +303,7 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "toni braxton - un break my heart": "p2Rch6WvPJE",
   "jagged edge - lets get married": "9XwPCVvMcuE",
   "kelly price - friend of mine remix": "swP0h-K_Tss",
+  "tweet - oops oh my": "P5rqNyulfsQ",
   "michael jackson - another part of me": "8vwHQNQ88cM",
   "michael jackson - another part of me 2012 remaster": "8vwHQNQ88cM",
   // Manual video selected for Mary J. Blige — Not Gon Cry.
@@ -352,7 +353,7 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const YOUTUBE_CACHE_SELECTION_VERSION = 9;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 10;
     function youtubeCacheValid(entry) {
         return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
             Number.isFinite(entry.cachedAt) &&
@@ -3215,7 +3216,6 @@ function getOfficialVideoOverride(artist, song) {
                 "?part=snippet" +
                 "&type=video" +
                 "&maxResults=35" +
-                "&videoEmbeddable=true" +
                 "&safeSearch=moderate" +
                 "&regionCode=US" +
                 "&q=" + encodeURIComponent(query) +
@@ -3260,8 +3260,7 @@ function getOfficialVideoOverride(artist, song) {
                         "VEVO official video"].filter(Boolean).join(" ");
                     const extraUrl = "https://www.googleapis.com/youtube/v3/search" +
                         "?part=snippet&type=video&maxResults=35" +
-                        "&videoEmbeddable=true" +
-                        "&safeSearch=moderate&regionCode=US" +
+                                "&safeSearch=moderate&regionCode=US" +
                         "&q=" + encodeURIComponent(extraQuery) +
                         "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
                     youtubeQuotaSpent += YOUTUBE_SEARCH_COST;
@@ -3295,8 +3294,7 @@ function getOfficialVideoOverride(artist, song) {
                         .filter(Boolean).join(" ");
                     const plainUrl = "https://www.googleapis.com/youtube/v3/search" +
                         "?part=snippet&type=video&maxResults=35" +
-                        "&videoEmbeddable=true" +
-                        "&safeSearch=moderate&regionCode=US" +
+                                "&safeSearch=moderate&regionCode=US" +
                         "&q=" + encodeURIComponent(plainQuery) +
                         "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
                     youtubeQuotaSpent += YOUTUBE_SEARCH_COST;
@@ -3323,6 +3321,7 @@ function getOfficialVideoOverride(artist, song) {
                 const candidates = allSearchResults.filter(item =>
                     item && item.id && item.id.videoId &&
                     scoreYouTubeResult(item, artist, song) > -1000);
+                console.log("YOUTUBE CANDIDATE AUDIT:", allSearchResults.length, "search results;", candidates.length, "matching metadata and uploaders");
                 let detailedCandidates = candidates;
                 if (candidates.length) {
                     const ids = candidates.slice().sort((a, b) =>
