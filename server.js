@@ -353,7 +353,7 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const YOUTUBE_CACHE_SELECTION_VERSION = 10;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 11;
     function youtubeCacheValid(entry) {
         return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
             Number.isFinite(entry.cachedAt) &&
@@ -3095,13 +3095,22 @@ function getOfficialVideoOverride(artist, song) {
         if (declaresOfficial && artistChannel) score += 350;
         else if (declaresOfficial) score += 35;
         if (/\bofficial visualizer\b/.test(title)) score += 35;
-        if (officialChannel) score += 220;
+        if (officialChannel) score += 360;
+        // Ranking an unverified third-party music video is permitted, but an
+        // artist/VEVO uploader remains strongly preferred when available.
+        if (!artistChannel && explicitlyMusicVideo) score -= 130;
         if (/\bofficial (music )?video\b/.test(title) && officialChannel) score += 160;
         if (compactChannel === compactArtist + "vevo") score += 35;
         if (/\b(vevo|records|recordings|entertainment)\b/.test(channel)) score += 12;
         // Without an attributable uploader, prefer no video over a false match.
         if (/\b(fan|news|reaction|reactions|karaoke|tribute|cover channel)\b/.test(channel)) return -1000;
-        if (!artistChannel && !/\b(vevo|records|recordings)\b/.test(channel)) return -1000;
+        // Some genuine music videos are distributed by licensed archive and
+        // entertainment uploaders. A matching title with clear video wording
+        // can qualify even if the channel is not the artist's own channel.
+        // It remains lower priority than a matching official artist/VEVO channel.
+        const explicitlyMusicVideo = /\b(official (music )?video|music video|official mv|video clip|hd video)\b/.test(title);
+        if (!artistChannel && !/\b(vevo|records|recordings)\b/.test(channel) &&
+            !explicitlyMusicVideo) return -1000;
         // Music-video evidence is mandatory; do not show interviews or unrelated
         // artist uploads merely because their description mentions the song.
         const musicVideoEvidence = /\b(official (music )?video|music video|official mv|vevo|hd video|video clip)\b/.test(title) ||
