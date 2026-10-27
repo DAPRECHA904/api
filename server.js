@@ -282,7 +282,8 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "mk xyz - one time": "cLwnojWx0Ac",
   // The Weeknd — Earned It (Fifty Shades of Grey), official video supplied by venue owner.
   "the weeknd - earned it": "waU75jdUnYw",
-  "the weeknd - earned it fifty shades of grey": "waU75jdUnYw"
+  "the weeknd - earned it fifty shades of grey": "waU75jdUnYw",
+  "bryson tiller - outside": "UkcOC8YEVMQ"
 };
 
 function videoOverrideKey(artist, song) {
@@ -326,10 +327,13 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 2;
     function youtubeCacheValid(entry) {
-        return entry && Number.isFinite(entry.cachedAt) &&
+        return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
+            Number.isFinite(entry.cachedAt) &&
             Date.now() >= entry.cachedAt &&
-            Date.now() - entry.cachedAt < YOUTUBE_CACHE_MAX_AGE_MS;
+            Date.now() - entry.cachedAt < (entry.found
+                ? YOUTUBE_CACHE_MAX_AGE_MS : 15 * 60 * 1000);
     }
     const videoSearchesInProgress = new Map();
 
@@ -3101,45 +3105,65 @@ function getOfficialVideoOverride(artist, song) {
         ].includes(compactChannel);
     }
 
+    function videoDurationSeconds(isoDuration) {
+        const m = String(isoDuration || "").match(/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i);
+        if (!m) return null;
+        return (Number(m[1] || 0) * 86400) +
+            (Number(m[2] || 0) * 3600) +
+            (Number(m[3] || 0) * 60) + Number(m[4] || 0);
+    }
+
     function scoreYouTubeResult(item, artist, song) {
         if (!item || !item.snippet) return -1000;
-
         const title = normalizeVideoText(item.snippet.title);
         const channel = normalizeVideoText(item.snippet.channelTitle);
         const wantedArtist = normalizeVideoText(artist);
-        const wantedSong = normalizeVideoText(
-            removeFeaturedArtists(removeVersionInfo(song))
-        );
-
-        // Never show another artist's version, even if its title is very similar.
+        const wantedSong = normalizeVideoText(removeFeaturedArtists(removeVersionInfo(song)));
         if (!wantedArtist || !wantedSong ||
             !hasVideoPhrase(title, wantedSong) ||
-            !videoArtistMatches(title, channel, wantedArtist)) {
-            return -1000;
+            !videoArtistMatches(title, channel, wantedArtist)) return -1000;
+
+        // Reaction titles commonly quote "(Official Video)" despite being reactions.
+        if (/\b(react|reacts|reacting|reaction|review|reviews|reviewing|breakdown|commentary|explained|podcast|interview|tutorial|karaoke|instrumental|cover|covers|parody|trailer|teaser|snippet|preview|fanmade|fan made)\b/.test(title)) return -1000;
+        if (/\b(remix|mashup|sped up|slowed|nightcore|reverb)\b/.test(title) &&
+            !/\b(remix|mashup|sped up|slowed|nightcore|reverb)\b/.test(normalizeVideoText(song))) return -1000;
+
+        if (item.status && (item.status.embeddable === false ||
+            item.status.privacyStatus === "private")) return -1000;
+        const region = item.contentDetails && item.contentDetails.regionRestriction;
+        if (region && ((Array.isArray(region.blocked) && region.blocked.includes("US")) ||
+            (Array.isArray(region.allowed) && !region.allowed.includes("US")))) return -1000;
+
+        let score = 260;
+        const duration = videoDurationSeconds(item.contentDetails && item.contentDetails.duration);
+        if (duration !== null) {
+            if (duration < 85) score -= 170;
+            if (duration > 800) score -= 160;
         }
 
-        let score = 260; // Verified both artist and full track title.
+        const compactArtist = wantedArtist.replace(/\s+/g, "");
+        const compactChannel = channel.replace(/\s+/g, "");
+        const officialChannel = channel === wantedArtist ||
+            compactChannel === compactArtist ||
+            compactChannel === compactArtist + "vevo" ||
+            compactChannel === compactArtist + "official" ||
+            compactChannel === compactArtist + "music";
+        if (title.startsWith(wantedArtist + " " + wantedSong)) score += 55;
+        if (/\bofficial (music )?video\b|\bofficial visualizer\b|\bofficial mv\b/.test(title)) score += 110;
+        if (officialChannel) score += 110;
+        if (compactChannel === compactArtist + "vevo") score += 35;
+        if (/\b(vevo|records|recordings|entertainment)\b/.test(channel)) score += 12;
+        if (/\b(lyric video|lyrics|lyrics on screen)\b/.test(title)) score -= 135;
+        if (/\b(audio|topic)\b/.test(title) || /\btopic\b/.test(channel)) score -= 90;
+        if (/\bvisualizer\b/.test(title)) score -= 65;
+        if (/\blive\b/.test(title)) score -= 95;
 
-        if (
-            title.includes("official music video") ||
-            title.includes("official video")
-        ) score += 90;
-
-        if (
-            channel.includes("vevo") ||
-            (wantedArtist && channel.includes(wantedArtist))
-        ) score += 45;
-
-        if (title.includes("lyric video")) score -= 130;
-        if (title.includes("lyrics")) score -= 80;
-        if (title.includes("audio")) score -= 70;
-        if (title.includes("visualizer")) score -= 55;
-        if (title.includes("reaction")) score -= 180;
-        if (title.includes("cover")) score -= 110;
-        if (title.includes("karaoke")) score -= 180;
-        if (title.includes("instrumental")) score -= 180;
-        if (title.includes("live")) score -= 60;
-
+        // Actual views, not search position. View-count bonus is bounded
+        // and only applies after both artist and song have been validated.
+        const views = Number(item.statistics && item.statistics.viewCount);
+        if (Number.isFinite(views) && views > 0) {
+            score += Math.min(105, Math.round(Math.log10(views + 1) * 14));
+        }
         return score;
     }
 
@@ -3231,7 +3255,7 @@ function getOfficialVideoOverride(artist, song) {
                 "https://www.googleapis.com/youtube/v3/search" +
                 "?part=snippet" +
                 "&type=video" +
-                "&maxResults=20" +
+                "&maxResults=35" +
                 "&videoEmbeddable=true" +
                 "&videoSyndicated=true" +
                 "&safeSearch=moderate" +
@@ -3258,17 +3282,45 @@ function getOfficialVideoOverride(artist, song) {
                         found: false,
                         result: null,
                         query: query,
+                        selectionVersion: YOUTUBE_CACHE_SELECTION_VERSION,
                         cachedAt: Date.now()
                     });
                     savePersistentVideoCache();
                     return null;
                 }
 
+                // search.list has no view statistics. One videos.list lookup
+                // supplies real view counts and embed status for candidates.
+                const candidates = data.items.filter(item =>
+                    item && item.id && item.id.videoId &&
+                    scoreYouTubeResult(item, artist, song) > -1000);
+                let detailedCandidates = candidates;
+                if (candidates.length) {
+                    const ids = candidates.map(item => item.id.videoId);
+                    const detailUrl = "https://www.googleapis.com/youtube/v3/videos" +
+                        "?part=statistics,contentDetails,status" +
+                        "&id=" + encodeURIComponent(ids.join(",")) +
+                        "&key=" + encodeURIComponent(YOUTUBE_API_KEY);
+                    try {
+                        const detailData = JSON.parse(await fetchText(detailUrl, 10000));
+                        if (Array.isArray(detailData.items)) {
+                            const detailMap = new Map(detailData.items.map(d => [d.id, d]));
+                            detailedCandidates = candidates.filter(item =>
+                                detailMap.has(item.id.videoId)).map(item => ({
+                                    ...detailMap.get(item.id.videoId),
+                                    snippet: item.snippet,
+                                    id: item.id
+                                }));
+                            console.log("YOUTUBE VIDEO DETAILS:", detailedCandidates.length,
+                                "candidates ranked with view counts");
+                        }
+                    } catch (error) {
+                        console.log("YOUTUBE VIDEO STATS UNAVAILABLE:", error.message);
+                    }
+                }
                 let best = null;
                 let bestScore = -1000;
-
-                for (const item of data.items) {
-                    if (!item.id || !item.id.videoId) continue;
+                for (const item of detailedCandidates) {
                     const score = scoreYouTubeResult(item, artist, song);
                     if (score > bestScore) {
                         bestScore = score;
@@ -3281,6 +3333,7 @@ function getOfficialVideoOverride(artist, song) {
                         found: false,
                         result: null,
                         query: query,
+                        selectionVersion: YOUTUBE_CACHE_SELECTION_VERSION,
                         cachedAt: Date.now()
                     });
                     savePersistentVideoCache();
@@ -3296,24 +3349,23 @@ function getOfficialVideoOverride(artist, song) {
                     channelTitle: decodeText(best.snippet.channelTitle),
                     thumbnail: thumb ? thumb.url : null,
                     score: bestScore,
+                    viewCount: best.statistics && best.statistics.viewCount
+                        ? Number(best.statistics.viewCount) : null,
                     query: query
                 };
 
                 persistentVideoCache.set(cacheKey, {
                     found: true,
                     result: result,
+                    selectionVersion: YOUTUBE_CACHE_SELECTION_VERSION,
                     cachedAt: Date.now()
                 });
                 savePersistentVideoCache();
 
-                console.log(
-                    "YOUTUBE VIDEO MATCH:",
-                    best.snippet.title,
-                    "SCORE:",
-                    bestScore,
-                    "| SAVED:",
-                    cacheKey
-                );
+                console.log("YOUTUBE VIDEO MATCH:", best.snippet.title,
+                    "| CHANNEL:", best.snippet.channelTitle,
+                    "| VIEWS:", result.viewCount,
+                    "| SCORE:", bestScore, "| SAVED:", cacheKey);
 
                 return result;
             } catch (error) {
@@ -3384,7 +3436,9 @@ function getOfficialVideoOverride(artist, song) {
                 Date.now() - videoCache.updated > 90000;
             const quotaReady = cached.status === "quota_wait" &&
                 Date.now() >= youtubeSearchBackoffUntil;
-            if (!retryable && !quotaReady) return buildVideoReply(cached);
+            const unavailableRetry = cached.status === "unavailable" &&
+                Date.now() - videoCache.updated > 15 * 60 * 1000;
+            if (!retryable && !quotaReady && !unavailableRetry) return buildVideoReply(cached);
         }
 
         const info = splitArtistAndSong(title);
@@ -3443,6 +3497,7 @@ function getOfficialVideoOverride(artist, song) {
                 channelTitle: match.channelTitle,
                 thumbnail: match.thumbnail,
                 query: match.query,
+                viewCount: match.viewCount || null,
                 source: "YouTube",
                 muted: true
             };
