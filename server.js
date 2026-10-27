@@ -2618,6 +2618,10 @@ function getOfficialVideoOverride(artist, song) {
             requests++;
             try {
                 const found = await searchLRCLIBQuery(query, a, song, mode);
+                if (found && found.item.syncedLyrics && found.item.syncedLyrics.trim()) {
+                    // A verified timestamped match takes priority over plain lyrics.
+                    found.score += 500;
+                }
                 if (found && found.score > bestScore) {
                     best = found.item; bestScore = found.score;
                 }
@@ -2629,10 +2633,10 @@ function getOfficialVideoOverride(artist, song) {
             if (artists.length) {
                 for (const a of artists) {
                     await tryLookup("exact", a, song);
-                    if (bestScore >= 300) return best;
+                    if (best && best.syncedLyrics && best.syncedLyrics.trim() && bestScore >= 300) return best;
                     if (errorSeen && errorSeen.retryable) break;
                     await tryLookup("structured", a, song);
-                    if (bestScore >= 300) return best;
+                    if (best && best.syncedLyrics && best.syncedLyrics.trim() && bestScore >= 300) return best;
                     if (errorSeen && errorSeen.retryable) break;
                 }
                 if (errorSeen && errorSeen.retryable) break;
@@ -2640,7 +2644,7 @@ function getOfficialVideoOverride(artist, song) {
             } else {
                 await tryLookup("keyword", "", song);
             }
-            if (bestScore >= 300 || requests >= 10 ||
+            if ((best && best.syncedLyrics && best.syncedLyrics.trim() && bestScore >= 300) || requests >= 10 ||
                 (errorSeen && errorSeen.retryable)) break;
         }
         if (best && bestScore >= 260) return best;
