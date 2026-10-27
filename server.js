@@ -299,6 +299,8 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "dru hill - these are the times": "6wPkC3DO_7Y",
   "heather headley - i wish i wasnt": "8oz716XcQqU",
   "tyrese - how you gonna act like that": "y3HbIHGnSR4",
+  "112 - u already know": "ynMnPGmhsG0",
+  "toni braxton - un break my heart": "p2Rch6WvPJE",
   "michael jackson - another part of me": "8vwHQNQ88cM",
   "michael jackson - another part of me 2012 remaster": "8vwHQNQ88cM",
   // Manual video selected for Mary J. Blige — Not Gon Cry.
@@ -3089,6 +3091,8 @@ function getOfficialVideoOverride(artist, song) {
         // Without an attributable uploader, prefer no video over a false match.
         if (!artistChannel && !/\b(vevo|records|recordings)\b/.test(channel)) return -1000;
         if (/\b(lyric video|lyrics|lyrics on screen)\b/.test(title)) score -= 135;
+        // Reject explicitly audio-only uploads when selecting a music video.
+        if (/\b(audio only|official audio|audio version|visual audio)\b/.test(title) || /\(audio\)/.test(String(item.snippet.title).toLowerCase())) return -1000;
         if (/\b(audio|topic)\b/.test(title)) score -= 90;
         // Topic channels are auto-generated track audio, not official music videos.
         if (/\btopic\b/.test(channel)) score -= 260;
