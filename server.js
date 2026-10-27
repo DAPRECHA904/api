@@ -302,6 +302,7 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "112 - u already know": "ynMnPGmhsG0",
   "toni braxton - un break my heart": "p2Rch6WvPJE",
   "jagged edge - lets get married": "9XwPCVvMcuE",
+  "kelly price - friend of mine remix": "swP0h-K_Tss",
   "michael jackson - another part of me": "8vwHQNQ88cM",
   "michael jackson - another part of me 2012 remaster": "8vwHQNQ88cM",
   // Manual video selected for Mary J. Blige — Not Gon Cry.
@@ -351,7 +352,7 @@ function getOfficialVideoOverride(artist, song) {
     const VIDEO_CACHE_FILE = path.join(__dirname, "youtube-video-cache.json");
     const persistentVideoCache = new Map();
     const YOUTUBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const YOUTUBE_CACHE_SELECTION_VERSION = 8;
+    const YOUTUBE_CACHE_SELECTION_VERSION = 9;
     function youtubeCacheValid(entry) {
         return entry && entry.selectionVersion === YOUTUBE_CACHE_SELECTION_VERSION &&
             Number.isFinite(entry.cachedAt) &&
@@ -3049,8 +3050,16 @@ function getOfficialVideoOverride(artist, song) {
         const channel = normalizeVideoText(item.snippet.channelTitle);
         const wantedArtist = normalizeVideoText(artist);
         const wantedSong = normalizeVideoText(removeFeaturedArtists(removeVersionInfo(song).replace(/\s*[([]\s*(?:\d{4}\s*)?(?:re-?master(?:ed)?|anniversary edition)(?:\s+version)?\s*[)\]]/gi, "")));
+        // Radio remixes sometimes have an official music-video title without
+        // the word "remix", but featuring the credited remix performers.
+        const remixRadioTitle = /\bremix\b/.test(wantedSong);
+        const baseSong = wantedSong.replace(/\s+remix\b/g, "").trim();
+        const creditedRemixVideo = remixRadioTitle &&
+            hasVideoPhrase(title, baseSong) &&
+            /\b(feat|ft|featuring)\b/.test(title) &&
+            /\b(official (music )?video|music video)\b/.test(title);
         if (!wantedArtist || !wantedSong ||
-            !hasVideoPhrase(title, wantedSong) ||
+            (!hasVideoPhrase(title, wantedSong) && !creditedRemixVideo) ||
             !videoArtistMatches(title, channel, wantedArtist)) return -1000;
 
         // Reaction titles commonly quote "(Official Video)" despite being reactions.
@@ -3279,7 +3288,10 @@ function getOfficialVideoOverride(artist, song) {
                 // the API did not return an official video.
                 if (!hasArtistVideo(allSearchResults) &&
                     youtubeQuotaSpent + YOUTUBE_SEARCH_COST <= YOUTUBE_DAILY_APP_BUDGET) {
-                    const plainQuery = [artist, noFeature || cleanSong || song, "music video"]
+                    const broadenedSong = (noFeature || cleanSong || song || "")
+                        .replace(/\s*[([]\s*remix\s*[)\]]/gi, "")
+                        .trim();
+                    const plainQuery = [artist, broadenedSong, "music video"]
                         .filter(Boolean).join(" ");
                     const plainUrl = "https://www.googleapis.com/youtube/v3/search" +
                         "?part=snippet&type=video&maxResults=35" +
