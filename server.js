@@ -60,8 +60,10 @@ app.get("/cloud.html", (req, res) => {
     // SLOW TIDE NOW PLAYING SERVER
     // ======================================================
 
+    // Follow the station selected before the last deployment.
+    // Never reset to Nasty Seduction simply because Render restarts.
     let currentStream =
-        "http://nastyseduction.filehostia.com:8851";
+        process.env.SLOW_TIDE_DEFAULT_STREAM || "http://gostream.store:8678";
 
     let currentTitle =
         "Connecting to Slow Tide...";
