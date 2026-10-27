@@ -3090,6 +3090,7 @@ function getOfficialVideoOverride(artist, song) {
         if (compactChannel === compactArtist + "vevo") score += 35;
         if (/\b(vevo|records|recordings|entertainment)\b/.test(channel)) score += 12;
         // Without an attributable uploader, prefer no video over a false match.
+        if (/\b(fan|news|reaction|reactions|karaoke|tribute|cover channel)\b/.test(channel)) return -1000;
         if (!artistChannel && !/\b(vevo|records|recordings)\b/.test(channel)) return -1000;
         // Music-video evidence is mandatory; do not show interviews or unrelated
         // artist uploads merely because their description mentions the song.
@@ -3226,23 +3227,16 @@ function getOfficialVideoOverride(artist, song) {
                 const text = await fetchText(url, 10000);
                 const data = JSON.parse(text);
 
-                if (!data || !Array.isArray(data.items) || data.items.length === 0) {
-                    persistentVideoCache.set(cacheKey, {
-                        found: false,
-                        result: null,
-                        query: query,
-                        selectionVersion: YOUTUBE_CACHE_SELECTION_VERSION,
-                        cachedAt: Date.now()
-                    });
-                    savePersistentVideoCache();
-                    return null;
+                // Even an empty first result must continue to alternate searches.
+                if (!data || !Array.isArray(data.items)) {
+                    console.log("YOUTUBE FIRST SEARCH EMPTY:", query);
                 }
 
                 // An official-looking keyword query can still return only
                 // automatically generated Topic audio. Search a second time
                 // with the artist's VEVO/music-video wording before falling back.
                 // Charge quota explicitly and never exceed the daily budget.
-                const allSearchResults = [...data.items];
+                const allSearchResults = Array.isArray(data && data.items) ? [...data.items] : [];
                 const hasArtistVideo = items => items.some(item => {
                     if (!item || !item.snippet || !item.id || !item.id.videoId) return false;
                     const title = normalizeVideoText(item.snippet.title);
