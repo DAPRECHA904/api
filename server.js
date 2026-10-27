@@ -283,7 +283,8 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   // The Weeknd — Earned It (Fifty Shades of Grey), official video supplied by venue owner.
   "the weeknd - earned it": "waU75jdUnYw",
   "the weeknd - earned it fifty shades of grey": "waU75jdUnYw",
-  "bryson tiller - outside": "UkcOC8YEVMQ"
+  "bryson tiller - outside": "UkcOC8YEVMQ",
+  "the isley brothers - hello its me": "JHSxgcefIhM"
 };
 
 function videoOverrideKey(artist, song) {
