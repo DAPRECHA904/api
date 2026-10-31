@@ -2426,10 +2426,13 @@ function getOfficialVideoOverride(artist, song) {
         // from consuming the limited LRCLIB query budget.
         const noVersion = removeVersionInfo(song);
         add(noVersion);
+        // Expand radio abbreviations without allowing a different song match.
+        if (/\bhrs\b/i.test(noVersion)) add(noVersion.replace(/\bhrs\b/gi, "hours"));
+        if (/\bhours\b/i.test(noVersion)) add(noVersion.replace(/\bhours\b/gi, "hrs"));
         // Make the most common radio title variants searchable, not only
         // acceptable as matches returned by the provider.
-        if (/\\bn['’]?\\b/i.test(noVersion)) add(noVersion.replace(/\\bn['’]?\\b/gi, "and"));
-        if (/\\band\\b/i.test(noVersion)) add(noVersion.replace(/\\band\\b/gi, "n"));
+        if (/\bn['’]?\b/i.test(noVersion)) add(noVersion.replace(/\bn['’]?\b/gi, "and"));
+        if (/\band\b/i.test(noVersion)) add(noVersion.replace(/\band\b/gi, "n"));
         // Keep the original as a last-resort variant, not as the first query.
         if (noVersion !== song) add(song);
 
@@ -2537,9 +2540,10 @@ function getOfficialVideoOverride(artist, song) {
     // Compare canonical whole titles, never fuzzy substrings.
     function canonicalLyricsSong(value) {
         return normalizeLyricsText(removeFeaturedArtists(removeVersionInfo(value)))
-            .replace(/\\b(?:n|and)\\b/g, "and")
-            .replace(/\\b(?:remaster|remastered|remastering)\\b(?: \\d{4})?/g, "")
-            .replace(/\\s+/g, " ").trim();
+            .replace(/\b(?:n|and)\b/g, "and")
+            .replace(/\bhrs\b/g, "hours")
+            .replace(/\b(?:remaster|remastered|remastering)\b(?: \d{4})?/g, "")
+            .replace(/\s+/g, " ").trim();
     }
     function lyricsSongMatches(found, wanted) {
         const a = canonicalLyricsSong(found);
@@ -2627,7 +2631,7 @@ function getOfficialVideoOverride(artist, song) {
 
     async function searchLRCLIB(artist, originalSong) {
         if (!originalSong) return null;
-        const variants = createSongVariants(originalSong).slice(0, 4);
+        const variants = createSongVariants(originalSong).slice(0, 6);
         const artists = lyricsArtistVariants(artist);
         console.log("LRCLIB SMART SEARCH:", artist, "-", originalSong,
             "| ARTIST VARIANTS:", artists, "| SONG VARIANTS:", variants);
