@@ -2425,6 +2425,10 @@ function getOfficialVideoOverride(artist, song) {
         // from consuming the limited LRCLIB query budget.
         const noVersion = removeVersionInfo(song);
         add(noVersion);
+        // Make the most common radio title variants searchable, not only
+        // acceptable as matches returned by the provider.
+        if (/\\bn['’]?\\b/i.test(noVersion)) add(noVersion.replace(/\\bn['’]?\\b/gi, "and"));
+        if (/\\band\\b/i.test(noVersion)) add(noVersion.replace(/\\band\\b/gi, "n"));
         // Keep the original as a last-resort variant, not as the first query.
         if (noVersion !== song) add(song);
 
@@ -2527,10 +2531,19 @@ function getOfficialVideoOverride(artist, song) {
             (baseFound === leadFound || baseWanted === leadWanted));
     }
 
+    // Radio station titles often use "n", "n'", "&", or "and"
+    // interchangeably (for example Bump N' Grind / Bump and Grind).
+    // Compare canonical whole titles, never fuzzy substrings.
+    function canonicalLyricsSong(value) {
+        return normalizeLyricsText(removeFeaturedArtists(removeVersionInfo(value)))
+            .replace(/\\b(?:n|and)\\b/g, "and")
+            .replace(/\\b(?:remaster|remastered|remastering)\\b(?: \\d{4})?/g, "")
+            .replace(/\\s+/g, " ").trim();
+    }
     function lyricsSongMatches(found, wanted) {
-        const norm = s => normalizeLyricsText(
-            removeFeaturedArtists(removeVersionInfo(s)));
-        return Boolean(norm(found) && norm(found) === norm(wanted));
+        const a = canonicalLyricsSong(found);
+        const b = canonicalLyricsSong(wanted);
+        return Boolean(a && a === b);
     }
 
     function scoreLyricsResult(item, wantedArtist, wantedSong) {
@@ -2655,6 +2668,12 @@ function getOfficialVideoOverride(artist, song) {
             }
             if ((best && best.syncedLyrics && best.syncedLyrics.trim() && bestScore >= 300) || requests >= 10 ||
                 (errorSeen && errorSeen.retryable)) break;
+        }
+        // Station metadata can have unexpected punctuation. If artist +
+        // title queries miss, try the track by itself but STILL require the
+        // returned artist and canonical song to match before displaying it.
+        if (!best && !(errorSeen && errorSeen.retryable) && requests < 10) {
+            await tryLookup("keyword", "", variants[0]);
         }
         if (best && bestScore >= 260) return best;
         if (errorSeen) throw errorSeen;
