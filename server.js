@@ -295,6 +295,7 @@ const OFFICIAL_VIDEO_OVERRIDES = {
   "bryson tiller - outside": "UkcOC8YEVMQ",
   "the isley brothers - hello its me": "JHSxgcefIhM",
   "usher - there goes my baby": "m6urbZyHgO4",
+  "usher - nice and slow": "DIpQ4AZSAf8",
   "mya - my love is like wo": "K4gcQj_NZ30",
   "dru hill - these are the times": "6wPkC3DO_7Y",
   "heather headley - i wish i wasnt": "8oz716XcQqU",
