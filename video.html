@@ -32,6 +32,7 @@
     let masterElapsed=0, masterAnchorLocal=Date.now(), pendingVideo=null;
     let requestInFlight=false, currentGeneration=null, blockedVideoId="", blockedTrackTitle="";
     let autoplayRetryTimer=null;
+    let playbackWatchdog=null, playbackAttemptAt=0;
     let radioRequestInFlight=false;
     let radioGeneration=null;
     let radioTrackTitle="";
@@ -50,6 +51,7 @@
       currentVideoId="";
       pendingVideo=null;
       if(autoplayRetryTimer){clearInterval(autoplayRetryTimer);autoplayRetryTimer=null;}
+      if(playbackWatchdog){clearTimeout(playbackWatchdog);playbackWatchdog=null;}
       if(playerReady&&player){
         try{player.stopVideo();}catch(e){}
         // Unload the previous track. Simply hiding the iframe can leave its audio playing.
@@ -60,7 +62,7 @@
     function onYouTubeIframeAPIReady(){
       player=new YT.Player("player",{
         width:"100%",height:"100%",
-        playerVars:{autoplay:1,controls:0,disablekb:1,fs:0,playsinline:1,rel:0,iv_load_policy:3},
+        playerVars:{autoplay:1,mute:1,controls:0,disablekb:1,fs:0,playsinline:1,rel:0,iv_load_policy:3,origin:location.origin},
         events:{onReady:onPlayerReady,onStateChange:onPlayerStateChange,onError:onPlayerError,onAutoplayBlocked:onAutoplayBlocked}
       });
     }
@@ -79,6 +81,7 @@
       if(!player)return;
       try{player.mute();player.setVolume(0);}catch(err){}
       if(e.data===YT.PlayerState.PLAYING && currentVideoId && !blockedVideoId){
+        if(playbackWatchdog){clearTimeout(playbackWatchdog);playbackWatchdog=null;}
         document.getElementById("fallback").classList.add("hidden");
         document.getElementById("status").textContent="SLOW TIDE • MUSIC VIDEO • MUTED";
       }
@@ -116,6 +119,17 @@
       currentVideoId=videoId;
       player.mute();player.setVolume(0);
       player.loadVideoById({videoId,startSeconds:start});
+      playbackAttemptAt=Date.now();
+      if(playbackWatchdog)clearTimeout(playbackWatchdog);
+      playbackWatchdog=setTimeout(()=>{
+        if(currentVideoId!==videoId||currentTrackTitle!==title)return;
+        let state=-1;
+        try{state=player.getPlayerState();}catch(e){}
+        if(state!==YT.PlayerState.PLAYING){
+          console.warn("Slow Tide video startup timed out",videoId,state);
+          showFallback("Video playback could not start in this viewer. Check media autoplay.","VIDEO START TIMEOUT");
+        }
+      },12000);
       setTimeout(forceMutedAutoplay,150);
       startAutoplayRetries();
       player.mute();player.setVolume(0);
