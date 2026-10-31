@@ -33,6 +33,7 @@
     let requestInFlight=false, currentGeneration=null, blockedVideoId="", blockedTrackTitle="";
     let autoplayRetryTimer=null;
     let playbackWatchdog=null, playbackAttemptAt=0;
+    let startupRetryKey="", startupRetryCount=0;
     let radioRequestInFlight=false;
     let radioGeneration=null;
     let radioTrackTitle="";
@@ -81,6 +82,7 @@
       if(!player)return;
       try{player.mute();player.setVolume(0);}catch(err){}
       if(e.data===YT.PlayerState.PLAYING && currentVideoId && !blockedVideoId){
+        startupRetryCount=0;
         if(playbackWatchdog){clearTimeout(playbackWatchdog);playbackWatchdog=null;}
         document.getElementById("fallback").classList.add("hidden");
         document.getElementById("status").textContent="SLOW TIDE • MUSIC VIDEO • MUTED";
@@ -112,6 +114,8 @@
     function loadVideo(videoId,elapsed,title){
       if(!videoId || (videoId===blockedVideoId && title===blockedTrackTitle))return;
       const start=Math.max(0,Number(elapsed)||0)+VIDEO_SYNC_OFFSET_SECONDS;
+      const retryKey=title+"|"+videoId;
+      if(startupRetryKey!==retryKey){startupRetryKey=retryKey;startupRetryCount=0;}
       if(!playerReady){
         pendingVideo={videoId,elapsed,title};
         return;
@@ -127,7 +131,26 @@
         try{state=player.getPlayerState();}catch(e){}
         if(state!==YT.PlayerState.PLAYING){
           console.warn("Slow Tide video startup timed out",videoId,state);
-          showFallback("Video playback could not start in this viewer. Check media autoplay.","VIDEO START TIMEOUT");
+          if(startupRetryCount<2){
+            startupRetryCount++;
+            // Reload the same verified video at the CURRENT radio position.
+            // Do not mark it as unavailable merely because autoplay stalled.
+            showFallback("Reconnecting music video...","RETRYING VIDEO");
+            try{
+              const resume=Math.max(0,getMasterElapsed());
+              player.mute();player.loadVideoById({videoId,startSeconds:resume});
+              player.playVideo();
+            }catch(err){console.warn("Video reload failed",err);}
+            playbackWatchdog=setTimeout(()=>{
+              if(currentVideoId!==videoId||currentTrackTitle!==title)return;
+              let later=-1;try{later=player.getPlayerState();}catch(err){}
+              if(later!==YT.PlayerState.PLAYING){
+                showFallback("Video could not start. Check Second Life media autoplay.","VIDEO START TIMEOUT");
+              }
+            },12000);
+          }else{
+            showFallback("Video could not start. Check Second Life media autoplay.","VIDEO START TIMEOUT");
+          }
         }
       },12000);
       setTimeout(forceMutedAutoplay,150);
