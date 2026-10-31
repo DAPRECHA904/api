@@ -2249,26 +2249,35 @@ function getOfficialVideoOverride(artist, song) {
     // ======================================================
 
     function splitArtistAndSong(fullTitle) {
-        const text = String(fullTitle || "").trim();
+        let text = String(fullTitle || "").trim();
         if (!text) return {artist: null, song: null};
 
-        // Radio stations commonly send "Artist - Song", "Artist- Song",
-        // "Artist -Song", or use an en/em dash. A separator must have
-        // whitespace on at least one side so names like JAY-Z stay intact.
-        const matched = text.match(/^(.+?)\s+[-–—]\s*(.+)$/) ||
-                        text.match(/^(.+?)\s*[-–—]\s+(.+)$/);
-        if (matched) {
-            return {
-                artist: matched[1].trim(),
-                song: removeVersionInfo(matched[2].trim())
-            };
-        }
+        // Some station feeds prepend their own name before the real artist.
+        text = text.replace(/^(?:slow\s*tide|slowtide)\s*[-–—:|]\s*/i, "");
 
+        // Normal radio metadata: Artist - Song.
+        let matched = text.match(/^(.+?)\s+[-–—]\s*(.+)$/) ||
+                      text.match(/^(.+?)\s*[-–—]\s+(.+)$/);
+        // Certain Shoutcast feeds send "Tyrese-On Top Of Me" without spaces.
+        // Only infer a compact separator when it is unambiguous.
+        if (!matched) {
+            const compact = [...text.matchAll(/[-–—]/g)];
+            if (compact.length === 1) {
+                const index = compact[0].index;
+                if (index > 1 && index < text.length - 2) {
+                    matched = [text, text.slice(0, index), text.slice(index + 1)];
+                }
+            }
+        }
+        if (matched) return {
+            artist: matched[1].trim(),
+            song: removeVersionInfo(matched[2].trim())
+        };
         return {artist: null, song: removeVersionInfo(text)};
     }
 
 
-    // ======================================================
+        // ======================================================
     // LYRICS SEARCH CLEANUP
     // ======================================================
 
