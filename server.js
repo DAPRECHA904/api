@@ -288,6 +288,8 @@ app.get("/cloud.html", (req, res) => {
 // KNOWN OFFICIAL MUSIC VIDEO OVERRIDES
 // Keys are normalized "artist - song" strings. Add more known official videos here as needed.
 const OFFICIAL_VIDEO_OVERRIDES = {
+  // Monica - For You I Will (1997 music video; third-party upload, embedding may be restricted).
+  "monica - for you i will": "qWHCNieTMg8",
   "mk xyz - one time": "cLwnojWx0Ac",
   // The Weeknd — Earned It (Fifty Shades of Grey), official video supplied by venue owner.
   "the weeknd - earned it": "waU75jdUnYw",
